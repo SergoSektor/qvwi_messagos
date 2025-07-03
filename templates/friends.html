@@ -58,7 +58,7 @@
 <body>
     <div class="sidebar">
         <div class="profile-card">
-            <img src="{{ url_for('static', filename='uploads/' + user[5]) if user[5] else 'https://via.placeholder.com/150' }}" alt="Avatar">
+            <img src="{% if user[5] %}{{ url_for('static', filename='uploads/' + user[5]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" alt="Avatar">
             <h3>{{ user[1] }}</h3>
             <p>{{ user[4] or 'Статус не указан' }}</p>
         </div>
@@ -108,7 +108,7 @@
                 {% for user in search_results %}
                 <div class="friend-card">
                     <div class="friend-header">
-                        <img src="{{ url_for('static', filename='uploads/' + user[2]) if user[2] else 'https://via.placeholder.com/90' }}" 
+                        <img src="{{ url_for('static', filename='uploads/' + user[2]) if user[2] else 'uploads/default_avatar.png' }}" 
                              class="friend-avatar" alt="{{ user[1] }}">
                         <div class="friend-name">{{ user[1] }}</div>
                     </div>

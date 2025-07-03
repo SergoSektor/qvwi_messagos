@@ -57,7 +57,7 @@
 <body>
     <div class="sidebar">
         <div class="profile-card">
-            <img src="{{ url_for('static', filename='uploads/' + user[5]) if user[5] else 'https://via.placeholder.com/150' }}" alt="Avatar">
+            <img src="{% if user[5] %}{{ url_for('static', filename='uploads/' + user[5]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" alt="Avatar">
             <h3>{{ user[1] }}</h3>
             <p>{{ user[4] or 'Статус не указан' }}</p>
         </div>
@@ -100,7 +100,7 @@
         <div class="chat-container">
             {% if friend_id %}
             <div class="chat-header">
-                <img src="{{ url_for('static', filename='uploads/' + active_friend[5]) if active_friend[5] else 'https://via.placeholder.com/50' }}" alt="Avatar">
+                <img src="{% if user[5] %}{{ url_for('static', filename='uploads/' + user[5]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" alt="Avatar">
                 <div>
                     <h3>{{ active_friend[1] }}</h3>
                     <small></small>
@@ -121,6 +121,8 @@
             </div>
             
             <div class="chat-input">
+                <button id="attach-button" style="margin-right:10px;"><i class="fas fa-paperclip"></i></button>
+                <input type="file" id="file-input" style="display: none;">
                 <textarea id="message-input" placeholder="Напишите сообщение..."></textarea>
                 <button id="send-button"><i class="fas fa-paper-plane"></i></button>
             </div>
@@ -133,6 +135,9 @@
             {% endif %}
         </div>
     </div>
+
+
+    
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
