@@ -133,7 +133,7 @@
                 {% for req in requests %}
                 <div class="friend-card">
                     <div class="friend-header">
-                        <img src="{{ url_for('static', filename='uploads/' + req[2]) if req[2] else 'https://via.placeholder.com/90' }}" 
+                        <img src="{{ url_for('static', filename='uploads/' + req[2]) if req[2] else 'uploads/default_avatar.png' }}" 
                              class="friend-avatar" alt="{{ req[1] }}">
                         <div class="friend-name">{{ req[1] }}</div>
                     </div>

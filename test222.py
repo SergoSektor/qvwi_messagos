@@ -9,6 +9,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from gevent import monkey
 monkey.patch_all()
 
+
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_123!'
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
@@ -72,10 +73,7 @@ def init_db():
     
     for user in users:
         try:
-            # Добавляем аватар по умолчанию, если не указан
-            avatar = user[4] if len(user) > 4 and user[4] else 'default_avatar.png'
-            c.execute("INSERT INTO users (username, password, email, bio, avatar) VALUES (?, ?, ?, ?, ?)", 
-                     (user[0], user[1], user[2], user[3] if len(user) > 3 else 'none', avatar))
+            c.execute("INSERT INTO users (username, password, email, bio, avatar) VALUES (?, ?, ?, ?, ?)", user)
         except:
             pass
     

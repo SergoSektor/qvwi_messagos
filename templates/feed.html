@@ -82,7 +82,7 @@
             <div class="post">
                 <div class="post-header">
                     <a href="{{ url_for('profile', user_id=post[1]) }}">
-                        <img src="{{ url_for('static', filename='uploads/' + post[5]) if post[5] else 'https://via.placeholder.com/50' }}" alt="Avatar">
+                        <img src="{{ url_for('static', filename='uploads/' + post[5]) if post[5] else 'uploads/default_avatar.png' }}" alt="Avatar">
                     </a>
                     <div class="post-info">
                         <a href="{{ url_for('profile', user_id=post[1]) }}"><h3>{{ post[4] }}</h3></a>
