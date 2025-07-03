@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Лента новостей</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; background: #f0f2f5; color: #333; }
+        
+        .sidebar { width: 280px; background: #fff; height: 100vh; position: fixed; padding: 25px; box-shadow: 0 0 15px rgba(0,0,0,0.05); }
+        .profile-card { text-align: center; padding-bottom: 25px; border-bottom: 1px solid #eaeaea; margin-bottom: 25px; }
+        .profile-card img { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid #4a76a8; }
+        .profile-card h3 { margin: 15px 0 5px; font-size: 1.3rem; }
+        .profile-card p { color: #777; font-size: 0.9rem; }
+        .nav { margin-top: 15px; }
+        .nav a { display: flex; align-items: center; padding: 14px 15px; text-decoration: none; color: #444; border-radius: 8px; margin-bottom: 8px; transition: all 0.2s; }
+        .nav a:hover { background: #f0f2f5; transform: translateX(3px); }
+        .nav a.active { background: #4a76a8; color: white; }
+        .nav a i { margin-right: 12px; font-size: 1.2rem; }
+        
+        .content { flex: 1; margin-left: 280px; padding: 30px; }
+        .create-post { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 3px 15px rgba(0,0,0,0.03); margin-bottom: 30px; }
+        .create-post textarea { width: 100%; height: 100px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; resize: none; margin-bottom: 15px; font-family: inherit; font-size: 16px; }
+        .create-post button { background: #4a76a8; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; }
+        
+        .post { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 3px 15px rgba(0,0,0,0.03); margin-bottom: 25px; }
+        .post-header { display: flex; align-items: center; margin-bottom: 20px; }
+        .post-header img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; margin-right: 15px; }
+        .post-info h3 { margin: 0; font-size: 1.1rem; }
+        .post-info time { color: #65676b; font-size: 0.9rem; }
+        .post-content { margin: 15px 0 20px; font-size: 1.1rem; line-height: 1.5; }
+        .post-actions { display: flex; border-top: 1px solid #eee; padding-top: 15px; }
+        .post-actions button { flex: 1; background: none; border: none; padding: 10px; border-radius: 5px; cursor: pointer; color: #65676b; font-weight: 600; }
+        .post-actions button:hover { background: #f0f2f5; }
+        .post-actions button i { margin-right: 8px; }
+        
+        .empty-feed { text-align: center; padding: 50px; color: #95a5a6; }
+        .empty-feed i { font-size: 3rem; margin-bottom: 20px; opacity: 0.5; }
+        
+        .delete-btn { background: #e74c3c; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="profile-card">
+            <img src="{{ url_for('static', filename='uploads/' + user[5]) if user[5] else 'https://via.placeholder.com/150' }}" alt="Avatar">
+            <h3>{{ user[1] }}</h3>
+            <p>{{ user[4] or 'Статус не указан' }}</p>
+        </div>
+        <div class="nav">
+            <a href="{{ url_for('feed') }}" class="active">
+                <i class="fas fa-newspaper"></i> Новости
+            </a>
+            <a href="{{ url_for('profile') }}">
+                <i class="fas fa-user"></i> Профиль
+            </a>
+            <a href="{{ url_for('gallery') }}">
+                <i class="fas fa-images"></i> Фотографии
+            </a>
+            <a href="{{ url_for('messages') }}">
+                <i class="fas fa-comments"></i> Сообщения
+            </a>
+            <a href="{{ url_for('friends') }}">
+                <i class="fas fa-user-friends"></i> Друзья
+            </a>
+            <a href="{{ url_for('logout') }}">
+                <i class="fas fa-sign-out-alt"></i> Выйти
+            </a>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="create-post">
+            <form method="POST" action="{{ url_for('create_post') }}">
+                <textarea name="content" placeholder="Что у вас нового?" required></textarea>
+                <button type="submit"><i class="fas fa-paper-plane"></i> Опубликовать</button>
+            </form>
+        </div>
+        
+        {% if posts %}
+            {% for post in posts %}
+            <div class="post">
+                <div class="post-header">
+                    <a href="{{ url_for('profile', user_id=post[1]) }}">
+                        <img src="{{ url_for('static', filename='uploads/' + post[5]) if post[5] else 'https://via.placeholder.com/50' }}" alt="Avatar">
+                    </a>
+                    <div class="post-info">
+                        <a href="{{ url_for('profile', user_id=post[1]) }}"><h3>{{ post[4] }}</h3></a>
+                        <time>{{ post[3] }}</time>
+                    </div>
+                </div>
+                <div class="post-content">
+                    {{ post[2] }}
+                </div>
+                <div class="post-actions">
+                    {% if post[1] == session['user_id'] %}
+                    <button class="delete-btn" onclick="if(confirm('Удалить этот пост?')) { window.location.href = '/delete_post/{{ post[0] }}'; }">
+                        <i class="fas fa-trash"></i> Удалить
+                    </button>
+                    {% endif %}
+                    <button><i class="fas fa-thumbs-up"></i> Нравится</button>
+                    <button><i class="fas fa-comment"></i> Комментировать</button>
+                    <button><i class="fas fa-share"></i> Поделиться</button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="section">
+                <div class="empty-feed">
+                    <i class="fas fa-newspaper"></i>
+                    <h3>Новостей пока нет</h3>
+                    <p>Будьте первым, кто опубликует что-то интересное!</p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>

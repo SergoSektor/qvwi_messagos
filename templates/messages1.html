@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Сообщения</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; display: flex; background: #f0f2f5; }
+        
+        .sidebar { width: 250px; background: #fff; height: 100vh; position: fixed; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .profile-card { text-align: center; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        .profile-card img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; }
+        .profile-card h3 { margin: 10px 0; }
+        .nav { margin-top: 20px; }
+        .nav a { display: block; padding: 12px; text-decoration: none; color: #333; border-radius: 5px; margin-bottom: 5px; }
+        .nav a:hover { background: #f0f2f5; }
+        .nav a.active { background: #1877f2; color: white; }
+        
+        .content { flex: 1; margin-left: 250px; padding: 20px; display: flex; }
+        .friends-list { width: 300px; background: #fff; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); padding: 15px; margin-right: 20px; height: calc(100vh - 40px); overflow-y: auto; }
+        .friend-item { display: flex; align-items: center; padding: 10px; cursor: pointer; border-radius: 5px; }
+        .friend-item:hover { background: #f0f2f5; }
+        .friend-item.active { background: #e7f3ff; }
+        .friend-item img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 10px; }
+        
+        .chat-container { flex: 1; background: #fff; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); display: flex; flex-direction: column; height: calc(100vh - 40px); }
+        .chat-header { padding: 15px; border-bottom: 1px solid #eee; }
+        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; }
+        .message { margin-bottom: 15px; }
+        .message-content { display: inline-block; padding: 10px 15px; border-radius: 18px; max-width: 70%; }
+        .sent { text-align: right; }
+        .sent .message-content { background: #1877f2; color: white; }
+        .received .message-content { background: #f0f2f5; }
+        .message-time { font-size: 12px; color: #65676b; margin-top: 5px; }
+        .chat-input { padding: 15px; border-top: 1px solid #eee; display: flex; }
+        .chat-input textarea { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 18px; resize: none; height: 40px; }
+        .chat-input button { background: #1877f2; color: white; border: none; border-radius: 18px; padding: 0 20px; margin-left: 10px; cursor: pointer; }
+        
+        /* Новые стили для индикатора набора текста */
+        .typing-indicator {
+            padding: 0 15px;
+            font-style: italic;
+            color: #777;
+            min-height: 20px;
+            display: none; /* По умолчанию скрыт */
+        }
+    </style>
+    <!-- Добавляем Socket.IO -->
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="profile-card">
+            <img src="{{ url_for('static', filename='uploads/' + user[5]) if user[5] else 'https://via.placeholder.com/80' }}" alt="Avatar">
+            <h3>{{ user[1] }}</h3>
+        </div>
+        <div class="nav">
+            <a href="{{ url_for('feed') }}">Новости</a>
+            <a href="{{ url_for('profile') }}">Профиль</a>
+            <a href="{{ url_for('gallery') }}">Фотографии</a>
+            <a href="{{ url_for('messages') }}" class="active">Сообщения</a>
+            <a href="{{ url_for('friends') }}">Друзья</a>
+            <a href="{{ url_for('logout') }}">Выйти</a>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="friends-list">
+            <h3>Друзья</h3>
+            {% for friend in friends %}
+            <div class="friend-item {% if friend_id == friend[0] %}active{% endif %}" onclick="location.href='{{ url_for('messages', friend_id=friend[0]) }}'">
+                <img src="{{ url_for('static', filename='uploads/' + friend[2]) if friend[2] else 'https://via.placeholder.com/40' }}" alt="Avatar">
+                <div>{{ friend[1] }}</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="chat-container">
+            {% if friend_id %}
+            <div class="chat-header">
+                <h3>{{ active_friend[1] }}</h3>
+            </div>
+            <div class="chat-messages" id="chat-messages">
+                {% for msg in messages %}
+                <div class="message {% if msg[1] == session['user_id'] %}sent{% else %}received{% endif %}">
+                    <div class="message-content">{{ msg[3] }}</div>
+                    <div class="message-time">{{ msg[4] }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <!-- Индикатор набора текста -->
+            <div class="typing-indicator" id="typing-indicator">
+                {{ active_friend[1] }} печатает...
+            </div>
+            
+            <!-- Заменяем форму на элементы управления чатом -->
+            <div class="chat-input">
+                <textarea id="message-input" placeholder="Напишите сообщение..."></textarea>
+                <button id="send-button">Отправить</button>
+            </div>
+            {% else %}
+            <div style="text-align: center; padding: 50px;">
+                <h3>Выберите диалог для просмотра</h3>
+                <p>Начните общение с вашими друзьями</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Подключаемся к WebSocket серверу
+            const socket = io();
+            const userId = {{ session['user_id'] }};
+            const friendId = {{ friend_id if friend_id else 0 }};
+            const chatMessages = document.getElementById('chat-messages');
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-button');
+            const typingIndicator = document.getElementById('typing-indicator');
+            
+            // Присоединяемся к комнате чата
+            if (friendId) {
+                socket.emit('join_chat', { friend_id: friendId });
+            }
+            
+            // Обработчик отправки сообщения
+            function sendMessage() {
+                const content = messageInput.value.trim();
+                if (content && friendId) {
+                    // Отправляем сообщение через WebSocket
+                    socket.emit('send_message', {
+                        receiver_id: friendId,
+                        content: content
+                    });
+                    
+                    // Очищаем поле ввода
+                    messageInput.value = '';
+                }
+            }
+            
+            // Отправка по клику на кнопку
+            sendButton.addEventListener('click', sendMessage);
+            
+            // Отправка по нажатию Enter
+            messageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            
+            // Отслеживание набора текста
+            messageInput.addEventListener('input', function() {
+                if (messageInput.value.trim() !== '') {
+                    socket.emit('typing', { receiver_id: friendId });
+                }
+            });
+            
+            // Обработка полученных сообщений
+            socket.on('receive_message', function(data) {
+                // Создаем элемент сообщения
+                const isSent = data.sender_id == userId;
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message ' + (isSent ? 'sent' : 'received');
+                
+                messageDiv.innerHTML = `
+                    <div class="message-content">${data.content}</div>
+                    <div class="message-time">${new Date().toLocaleTimeString()}</div>
+                `;
+                
+                // Добавляем сообщение в чат
+                chatMessages.appendChild(messageDiv);
+                
+                // Прокручиваем вниз
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            });
+            
+            // Обработка уведомления о наборе текста
+            socket.on('user_typing', function(data) {
+                if (data.sender_id === friendId) {
+                    // Показываем индикатор на 2 секунды
+                    typingIndicator.style.display = 'block';
+                    setTimeout(() => {
+                        typingIndicator.style.display = 'none';
+                    }, 2000);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

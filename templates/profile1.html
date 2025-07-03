@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Мой профиль</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; display: flex; background: #f0f2f5; }
+        
+        .sidebar { width: 250px; background: #fff; height: 100vh; position: fixed; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .profile-card { text-align: center; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        .profile-card img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; }
+        .profile-card h3 { margin: 10px 0; }
+        .nav { margin-top: 20px; }
+        .nav a { display: block; padding: 12px; text-decoration: none; color: #333; border-radius: 5px; margin-bottom: 5px; }
+        .nav a:hover { background: #f0f2f5; }
+        .nav a.active { background: #1877f2; color: white; }
+        
+        .content { flex: 1; margin-left: 250px; padding: 20px; }
+        .profile-header { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .profile-info { display: flex; }
+        .avatar-section { flex: 1; text-align: center; }
+        .avatar-section img { width: 150px; height: 150px; border-radius: 50%; object-fit: cover; }
+        .info-section { flex: 2; }
+        .info-section h1 { margin-bottom: 15px; }
+        .info-item { margin-bottom: 10px; }
+        
+        .edit-form { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; }
+        .form-group textarea { width: 100%; height: 100px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .form-group input[type="file"] { padding: 5px 0; }
+        button { background: #1877f2; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="profile-card">
+            <img src="{{ url_for('static', filename='uploads/' + user[5]) if user[5] else 'https://via.placeholder.com/80' }}" alt="Avatar">
+            <h3>{{ user[1] }}</h3>
+        </div>
+        <div class="nav">
+            <a href="{{ url_for('feed') }}">Новости</a>
+            <a href="{{ url_for('profile') }}" class="active">Профиль</a>
+            <a href="{{ url_for('gallery') }}">Фотографии</a>
+            <a href="{{ url_for('messages') }}">Сообщения</a>
+            <a href="{{ url_for('friends') }}">Друзья</a>
+            <a href="{{ url_for('logout') }}">Выйти</a>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="profile-header">
+            <div class="profile-info">
+                <div class="avatar-section">
+                    <img src="{{ url_for('static', filename='uploads/' + user[5]) if user[5] else 'https://via.placeholder.com/150' }}" alt="Avatar">
+                </div>
+                <div class="info-section">
+                    <h1>{{ user[1] }}</h1>
+                    <div class="info-item"><strong>Email:</strong> {{ user[3] or 'Не указан' }}</div>
+                    <div class="info-item"><strong>О себе:</strong> {{ user[4] or 'Не указано' }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="edit-form">
+            <h2>Редактировать профиль</h2>
+            <form method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="bio">О себе:</label>
+                    <textarea id="bio" name="bio">{{ user[4] or '' }}</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="avatar">Аватарка:</label>
+                    <input type="file" id="avatar" name="avatar">
+                </div>
+                <button type="submit">Сохранить</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

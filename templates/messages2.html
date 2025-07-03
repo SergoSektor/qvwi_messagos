@@ -1,0 +1,313 @@
+<!-- templates/messages.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Сообщения</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; background: #f0f2f5; color: #333; }
+        
+        /* Боковая панель */
+        .sidebar { width: 280px; background: #fff; height: 100vh; position: fixed; padding: 25px; box-shadow: 0 0 15px rgba(0,0,0,0.05); }
+        .profile-card { text-align: center; padding-bottom: 25px; border-bottom: 1px solid #eaeaea; margin-bottom: 25px; }
+        .profile-card img { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid #4a76a8; }
+        .profile-card h3 { margin: 15px 0 5px; font-size: 1.3rem; }
+        .profile-card p { color: #777; font-size: 0.9rem; }
+        .nav { margin-top: 15px; }
+        .nav a { display: flex; align-items: center; padding: 14px 15px; text-decoration: none; color: #444; border-radius: 8px; margin-bottom: 8px; transition: all 0.2s; }
+        .nav a:hover { background: #f0f2f5; transform: translateX(3px); }
+        .nav a.active { background: #4a76a8; color: white; }
+        .nav a i { margin-right: 12px; font-size: 1.2rem; }
+        
+        /* Основной контент */
+        .content { flex: 1; margin-left: 280px; padding: 30px; display: flex; height: calc(100vh - 60px); }
+        .friends-list { width: 320px; background: #fff; border-radius: 12px; box-shadow: 0 3px 15px rgba(0,0,0,0.03); padding: 20px; margin-right: 30px; height: 100%; overflow-y: auto; }
+        .friends-list h2 { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee; font-size: 1.4rem; color: #2c3e50; }
+        
+        .friend-item { display: flex; align-items: center; padding: 14px; cursor: pointer; border-radius: 8px; margin-bottom: 10px; transition: all 0.2s; }
+        .friend-item:hover { background: #f0f2f5; }
+        .friend-item.active { background: #e7f3ff; border-left: 4px solid #4a76a8; }
+        .friend-item img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; margin-right: 15px; }
+        .friend-info { flex: 1; min-width: 0; }
+        .friend-info h3 { margin: 0; font-size: 1.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .friend-info p { color: #65676b; font-size: 0.9rem; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .chat-container { flex: 1; background: #fff; border-radius: 12px; box-shadow: 0 3px 15px rgba(0,0,0,0.03); display: flex; flex-direction: column; height: 100%; }
+        .chat-header { display: flex; align-items: center; padding: 20px; border-bottom: 1px solid #eee; }
+        .chat-header img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; margin-right: 15px; flex-shrink: 0; }
+        .chat-header-info { min-width: 0; }
+        .chat-header h3 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .chat-messages { flex: 1; padding: 25px; overflow-y: auto; display: flex; flex-direction: column; }
+        .message { max-width: 75%; padding: 15px; border-radius: 18px; margin-bottom: 20px; position: relative; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .sent { align-self: flex-end; background: #4a76a8; color: white; border-bottom-right-radius: 5px; }
+        .received { align-self: flex-start; background: #f0f2f5; border-bottom-left-radius: 5px; }
+        .message-time { font-size: 0.8rem; margin-top: 8px; opacity: 0.8; }
+        .sent .message-time { text-align: right; color: rgba(255,255,255,0.8); }
+        .received .message-time { color: #65676b; }
+        
+        .typing-indicator { padding: 0 25px; font-style: italic; color: #777; min-height: 25px; display: none; }
+        
+        .chat-input { padding: 20px; border-top: 1px solid #eee; display: flex; align-items: center; }
+        .chat-input textarea { flex: 1; padding: 15px 20px; border: 1px solid #ddd; border-radius: 25px; resize: none; min-height: 50px; font-family: inherit; font-size: 1rem; transition: border 0.3s; }
+        .chat-input textarea:focus { outline: none; border-color: #4a76a8; }
+        .chat-input button { background: #4a76a8; color: white; border: none; border-radius: 50%; width: 50px; height: 50px; margin-left: 15px; cursor: pointer; font-size: 1.2rem; transition: background 0.3s; }
+        .chat-input button:hover { background: #3a6698; }
+        .chat-input button:disabled { background: #cccccc; cursor: not-allowed; }
+        
+        .empty-chat { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #95a5a6; padding: 50px; }
+        .empty-chat i { font-size: 4rem; margin-bottom: 20px; opacity: 0.3; }
+        .status-indicator { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ccc; margin-left: 8px; }
+        .status-online { background: #4caf50; }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="profile-card">
+            <img src="{{ url_for('static', filename='uploads/' + user[5]) if user[5] else 'https://via.placeholder.com/150' }}" alt="Avatar">
+            <h3>{{ user[1] }}</h3>
+            <p>{{ user[4] or 'Статус не указан' }}</p>
+        </div>
+        <div class="nav">
+            <a href="{{ url_for('feed') }}">
+                <i class="fas fa-newspaper"></i> Новости
+            </a>
+            <a href="{{ url_for('profile') }}">
+                <i class="fas fa-user"></i> Профиль
+            </a>
+            <a href="{{ url_for('gallery') }}">
+                <i class="fas fa-images"></i> Фотографии
+            </a>
+            <a href="{{ url_for('messages') }}" class="active">
+                <i class="fas fa-comments"></i> Сообщения
+            </a>
+            <a href="{{ url_for('friends') }}">
+                <i class="fas fa-user-friends"></i> Друзья
+            </a>
+            <a href="{{ url_for('logout') }}">
+                <i class="fas fa-sign-out-alt"></i> Выйти
+            </a>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="friends-list">
+            <h2>Диалоги</h2>
+            {% for friend in friends %}
+            <div class="friend-item {% if friend_id == friend[0] %}active{% endif %}" onclick="location.href='{{ url_for('messages', friend_id=friend[0]) }}'">
+                <img src="{{ url_for('static', filename='uploads/' + friend[2]) if friend[2] else 'https://via.placeholder.com/48' }}" alt="Avatar">
+                <div class="friend-info">
+                    <h3>{{ friend[1] }}</h3>
+                    <p>
+                        {% if friend[3] %}
+                            {% if friend[3][0] == session['user_id'] %}
+                                Вы: {{ friend[3][1] | truncate(25) }}
+                            {% else %}
+                                {{ friend[3][1] | truncate(25) }}
+                            {% endif %}
+                        {% else %}
+                            Нет сообщений
+                        {% endif %}
+                        <span class="status-indicator {% if friend[4] %}status-online{% endif %}"></span>
+                    </p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="chat-container">
+            {% if friend_id %}
+            <div class="chat-header">
+                <img src="{{ url_for('static', filename='uploads/' + active_friend[5]) if active_friend[5] else 'https://via.placeholder.com/50' }}" alt="Avatar">
+                <div class="chat-header-info">
+                    <h3>{{ active_friend[1] }}</h3>
+                    <small>
+                        {% if active_friend[6] %}
+                            в сети
+                        {% else %}
+                            был(а) недавно
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+            
+            <div class="chat-messages" id="chat-messages">
+                {% for msg in messages %}
+                <div class="message {% if msg[1] == session['user_id'] %}sent{% else %}received{% endif %}">
+                    <div class="message-text">{{ msg[3] }}</div>
+                    <div class="message-time">
+                        {{ msg[4].strftime('%H:%M') if msg[4] else '' }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <div class="typing-indicator" id="typing-indicator">
+                {{ active_friend[1] }} печатает...
+            </div>
+            
+            <div class="chat-input">
+                <textarea id="message-input" placeholder="Напишите сообщение..." oninput="handleTyping()"></textarea>
+                <button id="send-button" disabled><i class="fas fa-paper-plane"></i></button>
+            </div>
+            {% else %}
+            <div class="empty-chat">
+                <i class="fas fa-comments"></i>
+                <h3>Выберите диалог</h3>
+                <p>Начните общение с вашими друзьями</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const socket = io();
+            const userId = {{ session['user_id'] }};
+            const friendId = {{ friend_id if friend_id else 0 }};
+            const chatMessages = document.getElementById('chat-messages');
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-button');
+            const typingIndicator = document.getElementById('typing-indicator');
+            
+            // Функция форматирования времени
+            function formatTime(dateString) {
+                if (!dateString) return '';
+                
+                try {
+                    const date = new Date(dateString);
+                    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                } catch (e) {
+                    console.error('Error formatting time:', e);
+                    return '';
+                }
+            }
+
+            // Подключение к WebSocket
+            socket.on('connect', function() {
+                if (friendId) {
+                    socket.emit('join_chat', { friend_id: friendId });
+                }
+            });
+
+            // Включение/отключение кнопки отправки
+            messageInput.addEventListener('input', function() {
+                sendButton.disabled = !this.value.trim();
+            });
+
+            // Отправка сообщения
+            function sendMessage() {
+                const content = messageInput.value.trim();
+                if (content && friendId) {
+                    socket.emit('send_message', {
+                        receiver_id: friendId,
+                        content: content
+                    });
+                    messageInput.value = '';
+                    sendButton.disabled = true;
+                    // Прокрутка вниз после отправки
+                    setTimeout(() => {
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }, 100);
+                }
+            }
+
+            sendButton.addEventListener('click', sendMessage);
+            
+            messageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            // Отслеживание набора текста
+            let typingTimeout;
+            function handleTyping() {
+                if (messageInput.value.trim() !== '') {
+                    socket.emit('typing', { receiver_id: friendId });
+                }
+                
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    socket.emit('stop_typing', { receiver_id: friendId });
+                }, 1000);
+            }
+
+            // Получение новых сообщений
+            socket.on('receive_message', function(data) {
+                const isSent = data.sender_id == userId;
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+                
+                // Форматирование времени
+                const timeString = formatTime(data.timestamp) || new Date().toLocaleTimeString([], { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+                
+                messageDiv.innerHTML = `
+                    <div class="message-text">${data.content}</div>
+                    <div class="message-time">${timeString}</div>
+                `;
+                
+                chatMessages.appendChild(messageDiv);
+                
+                // Прокрутка к новому сообщению
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            });
+
+            // Уведомление о наборе текста
+            socket.on('user_typing', function(data) {
+                if (data.sender_id === friendId) {
+                    typingIndicator.style.display = 'block';
+                }
+            });
+            
+            socket.on('user_stop_typing', function(data) {
+                if (data.sender_id === friendId) {
+                    typingIndicator.style.display = 'none';
+                }
+            });
+            
+            // Загрузка истории сообщений
+            if (friendId) {
+                fetch(`/api/messages/${friendId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        data.messages.forEach(msg => {
+                            const isSent = msg.sender_id == userId;
+                            const messageDiv = document.createElement('div');
+                            messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+                            
+                            // Форматирование времени
+                            const timeString = formatTime(msg.timestamp) || '';
+                            
+                            messageDiv.innerHTML = `
+                                <div class="message-text">${msg.content}</div>
+                                <div class="message-time">${timeString}</div>
+                            `;
+                            
+                            chatMessages.appendChild(messageDiv);
+                        });
+                        // Прокрутка вниз после загрузки
+                        setTimeout(() => {
+                            chatMessages.scrollTop = chatMessages.scrollHeight;
+                        }, 100);
+                    });
+            }
+        });
+    </script>
+</body>
+</html>
