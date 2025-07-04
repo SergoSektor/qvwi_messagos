@@ -1,113 +1,598 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Сообщения</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        :root {
+            --bg-primary: #f0f2f5;
+            --bg-secondary: #fff;
+            --text-primary: #333;
+            --text-secondary: #777;
+            --border-color: #eaeaea;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            --section-bg: #fff;
+            --info-bg: #f8fafc;
+            --nav-hover: #f0f2f5;
+            --active-color: #4a76a8;
+            --sent-message: #4a76a8;
+            --received-message: #f0f2f5;
+            --chat-bg: #fff;
+        }
+
+        .dark-theme {
+            --bg-primary: #121212;
+            --bg-secondary: #1e1e1e;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --border-color: #333;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            --section-bg: #252525;
+            --info-bg: #2d2d2d;
+            --nav-hover: #333;
+            --active-color: #5a8fc7;
+            --sent-message: #2c3e50;
+            --received-message: #2d2d2d;
+            --chat-bg: #1e1e1e;
+        }
+
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: var(--bg-primary); 
+            color: var(--text-primary); 
+            min-height: 100vh;
+        }
+        
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        .sidebar { 
+            width: 280px; 
+            background: var(--bg-secondary); 
+            height: 100vh; 
+            position: fixed; 
+            padding: 25px; 
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            z-index: 100;
+        }
+        
+        .profile-card { 
+            text-align: center; 
+            padding-bottom: 25px; 
+            border-bottom: 1px solid var(--border-color); 
+            margin-bottom: 25px; 
+        }
+        
+        .profile-card img { 
+            width: 90px; 
+            height: 90px; 
+            border-radius: 50%; 
+            object-fit: cover; 
+            border: 3px solid var(--active-color); 
+        }
+        
+        .profile-card h3 { 
+            margin: 15px 0 5px; 
+            font-size: 1.3rem; 
+        }
+        
+        .profile-card p { 
+            color: var(--text-secondary); 
+            font-size: 0.9rem; 
+        }
+        
+        .nav { 
+            margin-top: 15px; 
+        }
+        
+        .nav a { 
+            display: flex; 
+            align-items: center; 
+            padding: 14px 15px; 
+            text-decoration: none; 
+            color: var(--text-primary); 
+            border-radius: 8px; 
+            margin-bottom: 8px; 
+            transition: all 0.2s; 
+        }
+        
+        .nav a:hover { 
+            background: var(--nav-hover); 
+            transform: translateX(3px); 
+        }
+        
+        .nav a.active { 
+            background: var(--active-color); 
+            color: white; 
+        }
+        
+        .nav a i { 
+            margin-right: 12px; 
+            font-size: 1.2rem; 
+        }
+        
+        /* Основной контент */
+        .content { 
+            flex: 1; 
+            margin-left: 280px; 
+            padding: 30px; 
+            display: flex; 
+            height: calc(100vh - 60px); 
+            gap: 30px;
+        }
+        
+        .friends-list { 
+            width: 320px; 
+            background: var(--section-bg); 
+            border-radius: 12px; 
+            box-shadow: var(--shadow); 
+            padding: 20px; 
+            height: 100%; 
+            overflow-y: auto; 
+        }
+        
+        .friends-list h2 { 
+            margin-bottom: 20px; 
+            padding-bottom: 15px; 
+            border-bottom: 1px solid var(--border-color); 
+            font-size: 1.4rem; 
+            color: var(--text-primary); 
+        }
+        
+        .friend-item { 
+            display: flex; 
+            align-items: center; 
+            padding: 14px; 
+            cursor: pointer; 
+            border-radius: 8px; 
+            margin-bottom: 10px; 
+            transition: all 0.2s; 
+        }
+        
+        .friend-item:hover { 
+            background: var(--nav-hover); 
+        }
+        
+        .friend-item.active { 
+            background: var(--info-bg); 
+            border-left: 4px solid var(--active-color); 
+        }
+        
+        .friend-item img { 
+            width: 48px; 
+            height: 48px; 
+            border-radius: 50%; 
+            object-fit: cover; 
+            margin-right: 15px; 
+        }
+        
+        .friend-info h3 { 
+            margin: 0; 
+            font-size: 1.1rem; 
+            color: var(--text-primary);
+        }
+        
+        .friend-info p { 
+            color: var(--text-secondary); 
+            font-size: 0.9rem; 
+            margin-top: 5px; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+        }
+        
+        .chat-container { 
+            flex: 1; 
+            background: var(--chat-bg); 
+            border-radius: 12px; 
+            box-shadow: var(--shadow); 
+            display: flex; 
+            flex-direction: column; 
+            height: 100%; 
+        }
+        
+        .chat-header { 
+            display: flex; 
+            align-items: center; 
+            padding: 20px; 
+            border-bottom: 1px solid var(--border-color); 
+        }
+        
+        .chat-avatar {
+            position: relative;
+            margin-right: 15px;
+        }
+        
+        .chat-avatar img { 
+            width: 50px; 
+            height: 50px; 
+            border-radius: 50%; 
+            object-fit: cover; 
+        }
+        
+        .chat-status {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ccc;
+            border: 2px solid var(--section-bg);
+        }
+        
+        .chat-status.chat-status-online {
+            background: #2ecc71;
+        }
+        
+        .chat-info h3 { 
+            margin: 0; 
+            font-size: 1.2rem; 
+            color: var(--text-primary);
+        }
+        
+        .chat-info p { 
+            color: var(--text-secondary); 
+            font-size: 0.9rem; 
+            margin-top: 3px;
+        }
+        
+        .chat-actions { 
+            margin-left: auto; 
+            display: flex;
+            gap: 10px;
+        }
+        
+        .chat-actions button { 
+            background: none; 
+            border: none; 
+            color: var(--text-secondary); 
+            cursor: pointer; 
+            font-size: 1.2rem;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .chat-actions button:hover {
+            background: var(--nav-hover);
+        }
+        
+        .chat-messages { 
+            flex: 1; 
+            padding: 25px; 
+            overflow-y: auto; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 20px;
+        }
+        
+        .message { 
+            max-width: 75%; 
+            padding: 15px; 
+            border-radius: 18px; 
+            position: relative; 
+        }
+        
+        .sent { 
+            align-self: flex-end; 
+            background: var(--sent-message); 
+            color: white; 
+            border-bottom-right-radius: 5px; 
+        }
+        
+        .received { 
+            align-self: flex-start; 
+            background: var(--received-message); 
+            color: var(--text-primary);
+            border-bottom-left-radius: 5px; 
+        }
+        
+        .message-text {
+            word-wrap: break-word;
+            line-height: 1.4;
+        }
+        
+        .message-time { 
+            font-size: 0.8rem; 
+            margin-top: 8px; 
+            opacity: 0.8; 
+        }
+        
+        .sent .message-time { 
+            text-align: right; 
+            color: rgba(255,255,255,0.8); 
+        }
+        
+        .received .message-time { 
+            color: var(--text-secondary); 
+        }
+        
+        .typing-indicator { 
+            padding: 0 25px; 
+            font-style: italic; 
+            color: var(--text-secondary); 
+            min-height: 25px; 
+            display: none; 
+        }
+        
+        .chat-input { 
+            padding: 20px; 
+            border-top: 1px solid var(--border-color); 
+            display: flex; 
+            align-items: center; 
+            gap: 10px;
+        }
+        
+        .chat-input textarea { 
+            flex: 1; 
+            padding: 15px 20px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 25px; 
+            resize: none; 
+            min-height: 50px; 
+            font-family: inherit; 
+            font-size: 1rem;
+            background: var(--info-bg);
+            color: var(--text-primary);
+        }
+        
+        .chat-input button { 
+            background: var(--active-color); 
+            color: white; 
+            border: none; 
+            border-radius: 50%; 
+            width: 50px; 
+            height: 50px; 
+            cursor: pointer; 
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .chat-input button:hover {
+            background: #3a6997;
+        }
+        
+        .empty-chat { 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            text-align: center; 
+            color: var(--text-secondary); 
+            padding: 50px; 
+        }
+        
+        .empty-chat i { 
+            font-size: 4rem; 
+            margin-bottom: 20px; 
+            opacity: 0.3; 
+        }
+        
+        .theme-toggle {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--active-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            font-size: 1.2rem;
+        }
+        
+        @media (max-width: 1200px) {
+            .content {
+                flex-direction: column;
+                height: auto;
+            }
+            
+            .friends-list {
+                width: 100%;
+                height: 300px;
+            }
+            
+            .chat-container {
+                height: calc(100vh - 400px);
+            }
+        }
+        
+        @media (max-width: 900px) {
+            .app-container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+            }
+            
+            .content {
+                margin-left: 0;
+                padding: 20px;
+                flex-direction: column;
+            }
+            
+            .friends-list {
+                width: 100%;
+                height: 300px;
+                margin-right: 0;
+                margin-bottom: 20px;
+            }
+            
+            .chat-container {
+                height: calc(100vh - 400px);
+            }
+            
+            .theme-toggle {
+                bottom: 20px;
+                right: 20px;
+                width: 45px;
+                height: 45px;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="profile-card">
-            <img src="{% if user[5] %}{{ url_for('static', filename='uploads/' + user[5]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" alt="Avatar">
-            <h3>{{ user[1] }}</h3>
-            <p>{{ user[4] or 'Статус не указан' }}</p>
-        </div>
-        <div class="nav">
-    <a href="{{ url_for('feed.feed') }}">
-        <i class="fas fa-newspaper"></i> Новости
-    </a>
-    <a href="{{ url_for('profile.profile') }}">
-        <i class="fas fa-user"></i> Профиль
-    </a>
-    <a href="{{ url_for('gallery.gallery') }}">
-        <i class="fas fa-images"></i> Фотографии
-    </a>
-    <a href="{{ url_for('messages.messages') }}" class="active">
-        <i class="fas fa-comments"></i> Сообщения
-    </a>
-    <a href="{{ url_for('friends.friends') }}">
-        <i class="fas fa-user-friends"></i> Друзья
-    </a>
-    <a href="{{ url_for('static.logout') }}">
-        <i class="fas fa-sign-out-alt"></i> Выйти
-    </a>
-</div>
-    </div>
-
-    <div class="content">
-        <div class="friends-list">
-            <h2>Диалоги</h2>
-            {% for friend in friends %}
-            <div class="friend-item {% if friend_id == friend[0] %}active{% endif %}" onclick="location.href='{{ url_for('messages.messages', friend_id=friend[0]) }}'">
-                <img src="{% if friend[2] %}{{ url_for('static', filename='uploads/' + friend[2]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" alt="Avatar">
-                <div class="friend-info">
-                    <h3>{{ friend[1] }}</h3>
-                    <p>Последнее сообщение...</p>
-                </div>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="profile-card">
+                <img src="{% if user[5] %}{{ url_for('static', filename='uploads/' + user[5]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" 
+                     alt="Avatar"
+                     onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
+                <h3>{{ user[1] }}</h3>
+                <p>{{ user[4] or 'Статус не указан' }}</p>
             </div>
-            {% endfor %}
+            <div class="nav">
+                <a href="{{ url_for('feed.feed') }}">
+                    <i class="fas fa-newspaper"></i> Новости
+                </a>
+                <a href="{{ url_for('profile.profile') }}">
+                    <i class="fas fa-user"></i> Профиль
+                </a>
+                <a href="{{ url_for('gallery.gallery') }}">
+                    <i class="fas fa-images"></i> Фотографии
+                </a>
+                <a href="{{ url_for('messages.messages') }}" class="active">
+                    <i class="fas fa-comments"></i> Сообщения
+                </a>
+                <a href="{{ url_for('friends.friends') }}">
+                    <i class="fas fa-user-friends"></i> Друзья
+                </a>
+                <a href="{{ url_for('static.logout') }}">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </a>
+            </div>
         </div>
 
-<div class="chat-container">
-    {% if friend_id %}
-    <div class="chat-header">
-        <div class="chat-avatar">
-            <img src="{% if active_friend[5] %}{{ url_for('static', filename='uploads/' + active_friend[5]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" alt="Аватар {{ active_friend[1] }}">
-            <div class="chat-status {% if active_friend[6] %}chat-status-online{% endif %}"></div>
-        </div>
-        <div class="chat-info">
-            <h3>{{ active_friend[1] }}</h3>
-            <p>
-                {% if active_friend[6] %}
-                    онлайн
-                {% else %}
-                    был(а) {{ active_friend[7].strftime('%H:%M') if active_friend[7] else 'недавно' }}
-                {% endif %}
-            </p>
-        </div>
-        <div class="chat-actions">
-            <button><i class="fas fa-phone-alt"></i></button>
-            <button><i class="fas fa-video"></i></button>
-            <button><i class="fas fa-ellipsis-v"></i></button>
-        </div>
-    </div>
-    
-            
-            <div class="chat-messages" id="chat-messages">
-                {% for msg in messages %}
-                <div class="message {% if msg[1] == session['user_id'] %}sent{% else %}received{% endif %}">
-                    <div class="message-text">{{ msg[3] }}</div>
-                    <div class="message-time">{{ msg[4] }}</div>
+        <div class="content">
+            <div class="friends-list">
+                <h2>Диалоги</h2>
+                {% for friend in friends %}
+                <div class="friend-item {% if friend_id == friend[0] %}active{% endif %}" onclick="location.href='{{ url_for('messages.messages', friend_id=friend[0]) }}'">
+                    <img src="{% if friend[2] %}{{ url_for('static', filename='uploads/' + friend[2]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" 
+                         alt="Avatar"
+                         onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
+                    <div class="friend-info">
+                        <h3>{{ friend[1] }}</h3>
+                        <p>Последнее сообщение...</p>
+                    </div>
                 </div>
                 {% endfor %}
             </div>
-            
-            <div class="typing-indicator" id="typing-indicator">
-                {{ active_friend[1] }} печатает...
+
+            <div class="chat-container">
+                {% if friend_id %}
+                <div class="chat-header">
+                    <div class="chat-avatar">
+                        <img src="{% if active_friend[5] %}{{ url_for('static', filename='uploads/' + active_friend[5]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" 
+                             alt="Аватар {{ active_friend[1] }}"
+                             onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
+                        <div class="chat-status {% if active_friend[6] %}chat-status-online{% endif %}"></div>
+                    </div>
+                    <div class="chat-info">
+                        <h3>{{ active_friend[1] }}</h3>
+                        <p>
+                            {% if active_friend[6] %}
+                                онлайн
+                            {% else %}
+                                был(а) {{ active_friend[7].strftime('%H:%M') if active_friend[7] else 'недавно' }}
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="chat-actions">
+                        <button title="Позвонить"><i class="fas fa-phone-alt"></i></button>
+                        <button title="Видеозвонок"><i class="fas fa-video"></i></button>
+                        <button title="Дополнительно"><i class="fas fa-ellipsis-v"></i></button>
+                    </div>
+                </div>
+                
+                <div class="chat-messages" id="chat-messages">
+                    {% for msg in messages %}
+                    <div class="message {% if msg[1] == session['user_id'] %}sent{% else %}received{% endif %}">
+                        <div class="message-text">{{ msg[3] }}</div>
+                        <div class="message-time">{{ msg[4] }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="typing-indicator" id="typing-indicator">
+                    {{ active_friend[1] }} печатает...
+                </div>
+                
+                <div class="chat-input">
+                    <button id="attach-button" title="Прикрепить файл"><i class="fas fa-paperclip"></i></button>
+                    <input type="file" id="file-input" style="display: none;">
+                    <textarea id="message-input" placeholder="Напишите сообщение..."></textarea>
+                    <button id="send-button" title="Отправить"><i class="fas fa-paper-plane"></i></button>
+                </div>
+                {% else %}
+                <div class="empty-chat">
+                    <i class="fas fa-comments"></i>
+                    <h3>Выберите диалог</h3>
+                    <p>Начните общение с вашими друзьями</p>
+                </div>
+                {% endif %}
             </div>
-            
-            <div class="chat-input">
-                <button id="attach-button" style="margin-right:10px;"><i class="fas fa-paperclip"></i></button>
-                <input type="file" id="file-input" style="display: none;">
-                <textarea id="message-input" placeholder="Напишите сообщение..."></textarea>
-                <button id="send-button"><i class="fas fa-paper-plane"></i></button>
-            </div>
-            {% else %}
-            <div class="empty-chat">
-                <i class="fas fa-comments"></i>
-                <h3>Выберите диалог</h3>
-                <p>Начните общение с вашими друзьями</p>
-            </div>
-            {% endif %}
         </div>
     </div>
 
+    <button class="theme-toggle" id="themeToggle">
+        <i class="fas fa-moon"></i>
+    </button>
 
-    
-    
     <script>
+        // Переключение темы
+        const themeToggle = document.getElementById('themeToggle');
+        const body = document.body;
+        
+        // Проверяем сохраненную тему
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            body.classList.add('dark-theme');
+            themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+        }
+        
+        themeToggle.addEventListener('click', () => {
+            body.classList.toggle('dark-theme');
+            
+            if (body.classList.contains('dark-theme')) {
+                localStorage.setItem('theme', 'dark');
+                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                localStorage.setItem('theme', 'light');
+                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+        });
+        
+        // Инициализация чата
         document.addEventListener('DOMContentLoaded', function() {
             const socket = io();
             const userId = {{ session['user_id'] }};
@@ -116,6 +601,8 @@
             const messageInput = document.getElementById('message-input');
             const sendButton = document.getElementById('send-button');
             const typingIndicator = document.getElementById('typing-indicator');
+            const fileInput = document.getElementById('file-input');
+            const attachButton = document.getElementById('attach-button');
             
             // Подключение к WebSocket
             socket.on('connect', function() {
@@ -133,6 +620,7 @@
                         content: content
                     });
                     messageInput.value = '';
+                    scrollToBottom();
                 }
             }
 
@@ -160,17 +648,18 @@
                 
                 messageDiv.innerHTML = `
                     <div class="message-text">${data.content}</div>
-                    <div class="message-time">${new Date().toLocaleTimeString()}</div>
+                    <div class="message-time">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
                 `;
                 
                 chatMessages.appendChild(messageDiv);
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+                scrollToBottom();
             });
 
             // Уведомление о наборе текста
             socket.on('user_typing', function(data) {
                 if (data.sender_id === friendId) {
                     typingIndicator.style.display = 'block';
+                    scrollToBottom();
                     setTimeout(() => {
                         typingIndicator.style.display = 'none';
                     }, 2000);
@@ -194,14 +683,23 @@
                             
                             chatMessages.appendChild(messageDiv);
                         });
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                        scrollToBottom();
                     });
             }
+            
+            // Прикрепление файлов
+            attachButton.addEventListener('click', () => {
+                fileInput.click();
+            });
+            
+            // Прокрутка вниз
+            function scrollToBottom() {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+            
+            // Автопрокрутка при загрузке
+            scrollToBottom();
         });
     </script>
-    <button class="theme-toggle" id="themeToggle">
-        <i class="fas fa-moon"></i>
-    </button>
-    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 </body>
 </html>

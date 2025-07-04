@@ -1,132 +1,724 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Профиль</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        :root {
+            --bg-primary: #f0f2f5;
+            --bg-secondary: #fff;
+            --bg-header: linear-gradient(135deg, #4a76a8, #3a6997);
+            --text-primary: #333;
+            --text-secondary: #777;
+            --border-color: #eaeaea;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            --section-bg: #fff;
+            --info-bg: #f8fafc;
+            --nav-hover: #f0f2f5;
+            --active-color: #4a76a8;
+            --delete-btn: #e74c3c;
+            --delete-hover: #c0392b;
+        }
+
+        .dark-theme {
+            --bg-primary: #121212;
+            --bg-secondary: #1e1e1e;
+            --bg-header: linear-gradient(135deg, #2c3e50, #1a2530);
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --border-color: #333;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            --section-bg: #252525;
+            --info-bg: #2d2d2d;
+            --nav-hover: #333;
+            --active-color: #5a8fc7;
+            --delete-btn: #c0392b;
+            --delete-hover: #a5281b;
+        }
+
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: var(--bg-primary); 
+            color: var(--text-primary); 
+            min-height: 100vh;
+        }
+        
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        .sidebar { 
+            width: 280px; 
+            background: var(--bg-secondary); 
+            padding: 25px; 
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            position: fixed;
+            height: 100vh;
+            z-index: 100;
+        }
+        
+        .profile-card { 
+            text-align: center; 
+            padding-bottom: 25px; 
+            border-bottom: 1px solid var(--border-color); 
+            margin-bottom: 25px; 
+        }
+        
+        .profile-card img { 
+            width: 90px; 
+            height: 90px; 
+            border-radius: 50%; 
+            object-fit: cover; 
+            border: 3px solid var(--active-color); 
+        }
+        
+        .profile-card h3 { 
+            margin: 15px 0 5px; 
+            font-size: 1.3rem; 
+        }
+        
+        .profile-card p { 
+            color: var(--text-secondary); 
+            font-size: 0.9rem; 
+        }
+        
+        .nav { 
+            margin-top: 15px; 
+        }
+        
+        .nav a { 
+            display: flex; 
+            align-items: center; 
+            padding: 14px 15px; 
+            text-decoration: none; 
+            color: var(--text-primary); 
+            border-radius: 8px; 
+            margin-bottom: 8px; 
+            transition: all 0.2s; 
+        }
+        
+        .nav a:hover { 
+            background: var(--nav-hover); 
+            transform: translateX(3px); 
+        }
+        
+        .nav a.active { 
+            background: var(--active-color); 
+            color: white; 
+        }
+        
+        .nav a i { 
+            margin-right: 12px; 
+            font-size: 1.2rem; 
+        }
+        
+        .content { 
+            flex: 1; 
+            margin-left: 280px; 
+            padding: 30px; 
+            background: var(--bg-primary);
+        }
+        
+        .profile-header {
+            background: var(--bg-header);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            color: white;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 8px 20px rgba(74, 118, 168, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .profile-header::before {
+            content: "";
+            position: absolute;
+            top: -50px;
+            right: -50px;
+            width: 200px;
+            height: 200px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+        
+        .profile-header::after {
+            content: "";
+            position: absolute;
+            bottom: -30px;
+            left: -30px;
+            width: 150px;
+            height: 150px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 50%;
+        }
+        
+        .profile-avatar {
+            position: relative;
+            margin-right: 30px;
+            z-index: 2;
+        }
+        
+        .profile-avatar img {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .avatar-upload {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            background: white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .avatar-upload:hover {
+            transform: scale(1.1);
+            background: #f0f2f5;
+        }
+        
+        .dark-theme .avatar-upload {
+            background: #333;
+        }
+        
+        .avatar-upload i {
+            color: var(--active-color);
+            font-size: 1.2rem;
+        }
+        
+        .avatar-upload input {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        
+        .profile-info {
+            z-index: 2;
+        }
+        
+        .profile-info h1 {
+            font-size: 2.2rem;
+            margin-bottom: 5px;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        
+        .profile-info p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            max-width: 600px;
+        }
+        
+        .profile-stats {
+            display: flex;
+            margin-top: 15px;
+        }
+        
+        .stat-item {
+            margin-right: 25px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .section {
+            background: var(--section-bg);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: var(--shadow);
+        }
+        
+        .section-title {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+        }
+        
+        .section-title h2 {
+            font-size: 1.5rem;
+        }
+        
+        .section-title i {
+            margin-right: 10px;
+            color: var(--active-color);
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .info-item {
+            padding: 15px;
+            border-radius: 8px;
+            background: var(--info-bg);
+        }
+        
+        .info-item label {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+        
+        .info-item p {
+            font-size: 1.1rem;
+            color: var(--text-primary);
+        }
+        
+        .edit-form .form-group { 
+            margin-bottom: 20px; 
+        }
+        
+        .edit-form label { 
+            display: block; 
+            font-weight: 600; 
+            margin-bottom: 8px; 
+            color: var(--text-primary); 
+        }
+        
+        .edit-form textarea { 
+            width: 100%; 
+            height: 120px; 
+            padding: 15px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 8px; 
+            resize: none; 
+            font-family: inherit; 
+            font-size: 16px;
+            background: var(--info-bg);
+            color: var(--text-primary);
+        }
+        
+        .edit-form button { 
+            background: var(--active-color); 
+            color: white; 
+            border: none; 
+            padding: 12px 25px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            font-weight: 600; 
+            transition: all 0.3s;
+        }
+        
+        .edit-form button:hover {
+            background: #3a6997;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(74, 118, 168, 0.3);
+        }
+        
+        .user-posts .post-item { 
+            background: var(--info-bg); 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin-bottom: 15px; 
+            position: relative; 
+            border-left: 4px solid var(--active-color);
+        }
+        
+        .user-posts .post-content { 
+            margin-bottom: 10px; 
+            font-size: 1.1rem;
+            line-height: 1.5;
+            color: var(--text-primary);
+        }
+        
+        .user-posts .post-time { 
+            color: var(--text-secondary); 
+            font-size: 0.9rem; 
+        }
+        
+        .delete-btn { 
+            position: absolute; 
+            top: 15px; 
+            right: 15px; 
+            background: var(--delete-btn); 
+            color: white; 
+            border: none; 
+            padding: 5px 10px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            transition: all 0.2s;
+        }
+        
+        .delete-btn:hover {
+            background: var(--delete-hover);
+        }
+        
+        .flash-message { 
+            padding: 15px; 
+            background: #d4edda; 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+            color: #155724; 
+        }
+        
+        .dark-theme .flash-message {
+            background: #2c4d36;
+            color: #d4edda;
+        }
+        
+        .empty-posts {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-secondary);
+        }
+        
+        .empty-posts i {
+            font-size: 3rem;
+            color: var(--text-secondary);
+            margin-bottom: 15px;
+        }
+        
+        .theme-toggle {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--active-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            font-size: 1.2rem;
+        }
+        
+        @media (max-width: 900px) {
+            .app-container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+            }
+            
+            .content {
+                margin-left: 0;
+                padding: 20px;
+            }
+            
+            .profile-header {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .profile-avatar {
+                margin-right: 0;
+                margin-bottom: 20px;
+            }
+            
+            .profile-stats {
+                justify-content: center;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="profile-card">
-            <img src="{{ url_for('static', filename='uploads/' + user.avatar) if user.avatar else url_for('static', filename='uploads/default_avatar.png') }}" 
-                 alt="Avatar"
-                 onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
-            <h3>{{ user.username }}</h3>
-            <p>{{ user.bio or 'Статус не указан' }}</p>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="profile-card">
+                <img src="{{ url_for('static', filename='uploads/' + user.avatar) if user.avatar else url_for('static', filename='uploads/default_avatar.png') }}" 
+                     alt="Avatar"
+                     id="sidebar-avatar"
+                     onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
+                <h3>{{ user.username }}</h3>
+                <p>{{ user.bio or 'Статус не указан' }}</p>
+            </div>
+            <div class="nav">
+                <a href="{{ url_for('feed.feed') }}">
+                    <i class="fas fa-newspaper"></i> Новости
+                </a>
+                <a href="{{ url_for('profile.profile') }}" class="active">
+                    <i class="fas fa-user"></i> Профиль
+                </a>
+                <a href="{{ url_for('gallery.gallery') }}">
+                    <i class="fas fa-images"></i> Фотографии
+                </a>
+                <a href="{{ url_for('messages.messages') }}">
+                    <i class="fas fa-comments"></i> Сообщения
+                </a>
+                <a href="{{ url_for('friends.friends') }}">
+                    <i class="fas fa-user-friends"></i> Друзья
+                </a>
+                <a href="{{ url_for('static.logout') }}">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </a>
+            </div>
         </div>
-        <div class="nav">
-    <a href="{{ url_for('feed.feed') }}">
-        <i class="fas fa-newspaper"></i> Новости
-    </a>
-    <a href="{{ url_for('profile.profile') }}" class="active">
-        <i class="fas fa-user"></i> Профиль
-    </a>
-    <a href="{{ url_for('gallery.gallery') }}">
-        <i class="fas fa-images"></i> Фотографии
-    </a>
-    <a href="{{ url_for('messages.messages') }}">
-        <i class="fas fa-comments"></i> Сообщения
-    </a>
-    <a href="{{ url_for('friends.friends') }}">
-        <i class="fas fa-user-friends"></i> Друзья
-    </a>
-    <a href="{{ url_for('static.logout') }}">
-        <i class="fas fa-sign-out-alt"></i> Выйти
-    </a>
-</div>
-    </div>
 
-    <div class="content">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="flash-message {{ 'success' if category == 'success' else 'error' }}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        
-        <div class="section">
-            <div class="profile-info">
-                <div class="avatar-section">
+        <div class="content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ 'success' if category == 'success' else 'error' }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <!-- Шапка профиля -->
+            <div class="profile-header">
+                <div class="profile-avatar">
                     <img src="{{ url_for('static', filename='uploads/' + user.avatar) if user.avatar else url_for('static', filename='uploads/default_avatar.png') }}" 
                          alt="Avatar"
+                         id="header-avatar"
                          onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
-                    <h2>{{ user.username }}</h2>
+                    
+                    {% if is_own_profile %}
+                    <div class="avatar-upload" title="Сменить аватар">
+                        <i class="fas fa-camera"></i>
+                        <input type="file" id="avatar" name="avatar" accept="image/*">
+                    </div>
+                    {% endif %}
                 </div>
-                <div class="info-section">
-                    <h1>Информация о профиле</h1>
+                
+                <div class="profile-info">
+                    <h1>{{ user.username }}</h1>
+                    <p>{{ user.bio or 'Пользователь социальной сети' }}</p>
+                    
+                    <div class="profile-stats">
+                        <div class="stat-item">
+                            <div class="stat-value"></div>
+                            <div class="stat-label"></div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value"></div>
+                            <div class="stat-label"></div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value"></div>
+                            <div class="stat-label"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Информация о профиле -->
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-info-circle"></i>
+                    <h2>Информация о профиле</h2>
+                </div>
+                
+                <div class="info-grid">
                     <div class="info-item">
                         <label>Имя пользователя</label>
                         <p>{{ user.username }}</p>
                     </div>
+                    
                     <div class="info-item">
                         <label>Email</label>
                         <p>{{ user.email or 'Не указан' }}</p>
                     </div>
+                    
                     <div class="info-item">
                         <label>О себе</label>
                         <p>{{ user.bio or 'Не указано' }}</p>
                     </div>
                 </div>
             </div>
-        </div>
 
-        {% if is_own_profile %}
-        <div class="section">
-            <div class="section-title">
-                <h2>Редактировать профиль</h2>
+            <!-- Редактирование профиля -->
+            {% if is_own_profile %}
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-edit"></i>
+                    <h2>Редактировать профиль</h2>
+                </div>
+                
+                <form method="POST" enctype="multipart/form-data" class="edit-form" id="profile-form">
+                    <div class="form-group">
+                        <label for="bio">О себе:</label>
+                        <textarea id="bio" name="bio" placeholder="Расскажите о себе...">{{ user.bio or '' }}</textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="avatar-file">Аватарка:</label>
+                        <input type="file" id="avatar-file" name="avatar" accept="image/*">
+                        <p style="margin-top: 8px; font-size: 14px; color: var(--text-secondary);">
+                            {% if user.avatar %}
+                                Текущий аватар: {{ user.avatar }}
+                            {% else %}
+                                Аватар не установлен
+                            {% endif %}
+                        </p>
+                    </div>
+                    
+                    <button type="submit">
+                        <i class="fas fa-save"></i> Сохранить изменения
+                    </button>
+                </form>
             </div>
-            <form method="POST" enctype="multipart/form-data" class="edit-form">
-                <div class="form-group">
-                    <label for="bio">О себе:</label>
-                    <textarea id="bio" name="bio" placeholder="Расскажите о себе...">{{ user.bio or '' }}</textarea>
-                </div>
-                <div class="form-group">
-                    <label for="avatar">Аватарка:</label>
-                    <input type="file" id="avatar" name="avatar">
-                    <p style="margin-top: 8px; font-size: 14px; color: #65676b;">
-                        {% if user.avatar %}
-                            Текущий аватар: {{ user.avatar }}
-                        {% else %}
-                            Аватар не установлен
-                        {% endif %}
-                    </p>
-                </div>
-                <button type="submit"><i class="fas fa-save"></i> Сохранить изменения</button>
-            </form>
-        </div>
-        {% endif %}
-        
-        <div class="section user-posts">
-            <div class="section-title">
-                <h2>Посты пользователя</h2>
-            </div>
-            
-            {% if posts %}
-                {% for post in posts %}
-                <div class="post-item">
-                    <div class="post-content">{{ post[1] }}</div>
-                    <div class="post-time">{{ post[2] | datetimeformat }}</div>
-                    {% if is_own_profile %}
-                    <form method="POST" action="{{ url_for('profile.delete_post', post_id=post[0]) }}">
-                        <button type="submit" class="delete-btn" onclick="return confirm('Удалить этот пост?')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </form>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            {% else %}
-                <p>Пользователь еще не опубликовал постов</p>
             {% endif %}
+            
+            <!-- Посты пользователя -->
+            <div class="section user-posts">
+                <div class="section-title">
+                    <i class="fas fa-feather-alt"></i>
+                    <h2>Посты пользователя</h2>
+                </div>
+                
+                {% if posts %}
+                    {% for post in posts %}
+                    <div class="post-item">
+                        <div class="post-content">{{ post[1] }}</div>
+                        <div class="post-time">{{ post[2] | datetimeformat }}</div>
+                        
+                        {% if is_own_profile %}
+                        <form method="POST" action="{{ url_for('profile.delete_post', post_id=post[0]) }}">
+                            <button type="submit" class="delete-btn" onclick="return confirm('Удалить этот пост?')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-posts">
+                        <i class="fas fa-feather"></i>
+                        <p>Пользователь еще не опубликовал постов</p>
+                    </div>
+                {% endif %}
+            </div>
         </div>
     </div>
+
     <button class="theme-toggle" id="themeToggle">
         <i class="fas fa-moon"></i>
     </button>
-    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+
+    <script>
+        // Переключение темы
+        const themeToggle = document.getElementById('themeToggle');
+        const body = document.body;
+        
+        // Проверяем сохраненную тему
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            body.classList.add('dark-theme');
+            themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+        }
+        
+        themeToggle.addEventListener('click', () => {
+            body.classList.toggle('dark-theme');
+            
+            if (body.classList.contains('dark-theme')) {
+                localStorage.setItem('theme', 'dark');
+                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                localStorage.setItem('theme', 'light');
+                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+        });
+        
+        // Обновление аватарки при выборе файла
+        const avatarInput = document.getElementById('avatar');
+        const avatarFileInput = document.getElementById('avatar-file');
+        
+        function updateAvatarPreview(file) {
+            if (file) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    // Обновляем превью аватарки в шапке
+                    document.getElementById('header-avatar').src = e.target.result;
+                    
+                    // Обновляем аватарку в сайдбаре
+                    document.getElementById('sidebar-avatar').src = e.target.result;
+                    
+                    // Обновляем поле в форме редактирования
+                    if (avatarFileInput) {
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        avatarFileInput.files = dataTransfer.files;
+                        
+                        // Обновляем текст под полем
+                        const infoText = avatarFileInput.nextElementSibling;
+                        infoText.textContent = `Выбран файл: ${file.name}`;
+                    }
+                }
+                
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        if (avatarInput) {
+            avatarInput.addEventListener('change', function(e) {
+                if (this.files && this.files[0]) {
+                    updateAvatarPreview(this.files[0]);
+                }
+            });
+        }
+        
+        if (avatarFileInput) {
+            avatarFileInput.addEventListener('change', function(e) {
+                if (this.files && this.files[0]) {
+                    updateAvatarPreview(this.files[0]);
+                }
+            });
+        }
+        
+        // Анимация при наведении на навигацию
+        document.querySelectorAll('.nav a').forEach(link => {
+            link.addEventListener('mouseenter', () => {
+                link.style.transform = 'translateX(5px)';
+            });
+            
+            link.addEventListener('mouseleave', () => {
+                link.style.transform = 'translateX(0)';
+            });
+        });
+    </script>
 </body>
 </html>

@@ -11,6 +11,11 @@ from routes.gallery import bp as gallery_bp
 from routes.messages import bp as messages_bp
 from routes.friends import bp as friends_bp
 from routes.static import bp as static_bp
+from gevent import monkey
+monkey.patch_all()
+
+os.environ['GEVENT_SUPPORT'] = 'True'
+
 
 app = Flask(__name__)
 app.config.from_object(Config)

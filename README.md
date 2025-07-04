@@ -33,5 +33,3 @@
     </p>
   </div>
 </div>
-
-![qvwimes](https://github.com/user-attachments/assets/5c0fdd2f-78f4-49d3-9f87-a99823cc3829)
