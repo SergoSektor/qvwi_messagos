@@ -2,7 +2,7 @@
   <h1 style="font-size: 2.8rem; margin: 0; color: white; text-shadow: 0 2px 4px rgba(0,0,0,0.3); letter-spacing: 0.5px;">
     created by 
     <a href="https://https://github.com/SergoSektor/qvwi_messagos/" target="_blank" style="color: #fffc00; text-decoration: none; transition: all 0.3s ease; border-bottom: 2px dashed rgba(255,255,255,0.5); padding-bottom: 2px; font-weight: 600;">
-      Qvwi
+      qvwi
     </a>
     <img src="https://github.com/blackcater/blackcater/raw/main/images/Hi.gif" height="38" style="vertical-align: middle; margin-left: 12px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
   </h1>
