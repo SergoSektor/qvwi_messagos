@@ -167,7 +167,7 @@
                 {% for friend in friends %}
                 <div class="friend-card">
                     <div class="friend-header">
-                        <img src="{{ url_for('static', filename='uploads/' + friend[2]) if friend[2] else 'https://via.placeholder.com/90' }}" 
+                        <img src="{{ url_for('static', filename='uploads/' + friend[2]) if friend[2] else 'uploads/default_avatar.png' }}" 
                              class="friend-avatar" alt="{{ friend[1] }}">
                         <div class="friend-name">{{ friend[1] }}</div>
                     </div>

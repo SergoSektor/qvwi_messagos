@@ -88,7 +88,7 @@
             <h2>Диалоги</h2>
             {% for friend in friends %}
             <div class="friend-item {% if friend_id == friend[0] %}active{% endif %}" onclick="location.href='{{ url_for('messages', friend_id=friend[0]) }}'">
-                <img src="{{ url_for('static', filename='uploads/' + friend[2]) if friend[2] else 'https://via.placeholder.com/48' }}" alt="Avatar">
+                <img src="{% if friend[2] %}{{ url_for('static', filename='uploads/' + friend[2]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" alt="Avatar">
                 <div class="friend-info">
                     <h3>{{ friend[1] }}</h3>
                     <p>Последнее сообщение...</p>
@@ -97,15 +97,30 @@
             {% endfor %}
         </div>
 
-        <div class="chat-container">
-            {% if friend_id %}
-            <div class="chat-header">
-                <img src="{% if user[5] %}{{ url_for('static', filename='uploads/' + user[5]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" alt="Avatar">
-                <div>
-                    <h3>{{ active_friend[1] }}</h3>
-                    <small></small>
-                </div>
-            </div>
+<div class="chat-container">
+    {% if friend_id %}
+    <div class="chat-header">
+        <div class="chat-avatar">
+            <img src="{% if active_friend[5] %}{{ url_for('static', filename='uploads/' + active_friend[5]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" alt="Аватар {{ active_friend[1] }}">
+            <div class="chat-status {% if active_friend[6] %}chat-status-online{% endif %}"></div>
+        </div>
+        <div class="chat-info">
+            <h3>{{ active_friend[1] }}</h3>
+            <p>
+                {% if active_friend[6] %}
+                    онлайн
+                {% else %}
+                    был(а) {{ active_friend[7].strftime('%H:%M') if active_friend[7] else 'недавно' }}
+                {% endif %}
+            </p>
+        </div>
+        <div class="chat-actions">
+            <button><i class="fas fa-phone-alt"></i></button>
+            <button><i class="fas fa-video"></i></button>
+            <button><i class="fas fa-ellipsis-v"></i></button>
+        </div>
+    </div>
+    
             
             <div class="chat-messages" id="chat-messages">
                 {% for msg in messages %}

@@ -9,7 +9,6 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from gevent import monkey
 monkey.patch_all()
 
-
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_123!'
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
@@ -24,15 +23,14 @@ def init_db():
     conn = sqlite3.connect('social_network.db')
     c = conn.cursor()
     
-    # Измененная таблица пользователей с добавлением поля is_admin
+    # Таблица пользователей
     c.execute('''CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
                 email TEXT,
                 bio TEXT,
-                avatar TEXT,
-                is_admin BOOLEAN DEFAULT 0)''')  # Добавлено поле is_admin
+                avatar TEXT)''')
     
     # Таблица друзей
     c.execute('''CREATE TABLE IF NOT EXISTS friends (
@@ -66,20 +64,29 @@ def init_db():
     
     # Добавляем тестовых пользователей
     users = [
-
-
+        ('alex', generate_password_hash('pass123'), 'alex@example.com', 'none', 'alex.gif'),
+        ('masha', generate_password_hash('pass123'), 'masha@example.com', 'none', 'masha.jpg'),
+        ('sasha', generate_password_hash('pass123'), 'sasha@example.com', 'none', 'sasha.png'),
+        ('dasha', generate_password_hash('pass123'), 'dasha@example.com', '123', 'dasha.gif'),
     ]
     
-    try:
-        c.execute("INSERT INTO users (username, password, is_admin) VALUES (?, ?, ?)", 
-                ('admin', generate_password_hash('admin123'), 1))
-    except:
-        pass
+    for user in users:
+        try:
+            # Добавляем аватар по умолчанию, если не указан
+            avatar = user[4] if len(user) > 4 and user[4] else 'default_avatar.png'
+            c.execute("INSERT INTO users (username, password, email, bio, avatar) VALUES (?, ?, ?, ?, ?)", 
+                     (user[0], user[1], user[2], user[3] if len(user) > 3 else 'none', avatar))
+        except:
+            pass
+    
+    # Добавляем тестовые посты
+
+
+   
 
 
 # Создаем папку для загрузок
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
 
 # Инициализируем БД
 init_db()
@@ -131,39 +138,6 @@ def index():
                 conn.close()
     
     return render_template('index.html')
-
-
-@app.route('/admin')
-def admin_panel():
-    if 'user_id' not in session:
-        return redirect(url_for('index'))
-    
-    # Проверяем права администратора
-    conn = sqlite3.connect('social_network.db')
-    c = conn.cursor()
-    c.execute("SELECT is_admin FROM users WHERE id = ?", (session['user_id'],))
-    is_admin = c.fetchone()[0]
-    
-    if not is_admin:
-        flash('Доступ запрещен: недостаточно прав')
-        return redirect(url_for('feed'))
-    
-    # Получаем статистику
-    c.execute("SELECT COUNT(*) FROM users")
-    users_count = c.fetchone()[0]
-    
-    c.execute("SELECT COUNT(*) FROM posts")
-    posts_count = c.fetchone()[0]
-    
-    c.execute("SELECT COUNT(*) FROM messages")
-    messages_count = c.fetchone()[0]
-    
-    conn.close()
-    
-    return render_template('admin.html', 
-                          users_count=users_count,
-                          posts_count=posts_count,
-                          messages_count=messages_count)
 
 # Лента новостей
 @app.route('/feed')
@@ -718,132 +692,7 @@ templates = {
     </script>
 </body>
 </html>''',
-    'admin.html': '''<!DOCTYPE html>
-<html>
-<head>
-    <title>Административная панель</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; background: #f0f2f5; }
-        
-        .sidebar { width: 280px; background: white; height: 100vh; position: fixed; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        .profile-card { display: flex; align-items: center; padding-bottom: 20px; border-bottom: 1px solid #eee; margin-bottom: 20px; }
-        .profile-card img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; margin-right: 15px; }
-        .nav a { display: flex; align-items: center; padding: 12px 15px; text-decoration: none; color: #333; border-radius: 8px; margin-bottom: 5px; transition: all 0.2s; }
-        .nav a:hover { background: #f0f2f5; }
-        .nav a.active { background: #1877f2; color: white; }
-        .nav a i { margin-right: 10px; }
-        
-        .content { flex: 1; margin-left: 280px; padding: 20px; }
-        
-        .admin-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .stat-card { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 3px 10px rgba(0,0,0,0.05); text-align: center; }
-        .stat-value { font-size: 2.5rem; font-weight: bold; color: #1877f2; margin: 10px 0; }
-        .stat-label { color: #65676b; font-size: 1rem; }
-        
-        .admin-section { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 3px 10px rgba(0,0,0,0.05); margin-bottom: 30px; }
-        .section-title { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
-        .section-title h2 { font-size: 1.5rem; color: #2c3e50; }
-        
-        .users-table { width: 100%; border-collapse: collapse; }
-        .users-table th, .users-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
-        .users-table th { background: #f8f9fa; font-weight: 600; }
-        .users-table tr:hover { background: #f8f9fa; }
-        
-        .btn { padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; }
-        .btn-danger { background: #e74c3c; color: white; }
-        .btn-danger:hover { background: #c0392b; }
-    </style>
-</head>
-<body>
-    <div class="sidebar">
-        <div class="profile-card">
-            <img src="{{ url_for('static', filename='uploads/' + user[5]) if user[5] else 'uploads/default_avatar.png' }}" alt="Avatar">
-            <div>
-                <h3>{{ user[1] }}</h3>
-                <small>Администратор</small>
-            </div>
-        </div>
-        
-        <div class="nav">
-            <a href="{{ url_for('feed') }}">
-                <i class="fas fa-newspaper"></i> Новости
-            </a>
-            <a href="{{ url_for('profile') }}">
-                <i class="fas fa-user"></i> Профиль
-            </a>
-            <a href="{{ url_for('gallery') }}">
-                <i class="fas fa-images"></i> Фотографии
-            </a>
-            <a href="{{ url_for('messages') }}">
-                <i class="fas fa-comments"></i> Сообщения
-            </a>
-            <a href="{{ url_for('friends') }}">
-                <i class="fas fa-user-friends"></i> Друзья
-            </a>
-            <a href="{{ url_for('admin_panel') }}" class="active">
-                <i class="fas fa-cog"></i> Админ панель
-            </a>
-            <a href="{{ url_for('logout') }}">
-                <i class="fas fa-sign-out-alt"></i> Выйти
-            </a>
-        </div>
-    </div>
-
-    <div class="content">
-        <div class="admin-stats">
-            <div class="stat-card">
-                <div class="stat-value">{{ users_count }}</div>
-                <div class="stat-label">Пользователей</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{ posts_count }}</div>
-                <div class="stat-label">Постов</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{ messages_count }}</div>
-                <div class="stat-label">Сообщений</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">{{ friends_count }}</div>
-                <div class="stat-label">Дружеских связей</div>
-            </div>
-        </div>
-        
-        <div class="admin-section">
-            <div class="section-title">
-                <h2>Последние пользователи</h2>
-            </div>
-            <table class="users-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Имя пользователя</th>
-                        <th>Email</th>
-                        <th>Дата регистрации</th>
-                        <th>Действия</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for user in recent_users %}
-                    <tr>
-                        <td>{{ user[0] }}</td>
-                        <td>{{ user[1] }}</td>
-                        <td>{{ user[2] or 'Не указан' }}</td>
-                        <td>{{ user[3] }}</td>
-                        <td>
-                            <button class="btn btn-danger">Удалить</button>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</body>
-</html>''',
-
+    
     'feed.html': '''<!DOCTYPE html>
 <html>
 <head>
@@ -883,7 +732,7 @@ templates = {
 <body>
     <div class="sidebar">
         <div class="profile-card">
-            <img src="{{ url_for('static', filename='uploads/' + user[5]) if user[5] else 'uploads/default_avatar.png' }}" alt="Avatar">
+            <img src="{{ url_for('static', filename='uploads/' + user[5]) if user[5] else 'https://via.placeholder.com/150?text=Avatar' }}" alt="Avatar">
             <div>
                 <h3>{{ user[1] }}</h3>
                 <small>{{ user[4] or 'Нет информации' | truncate(20) }}</small>
@@ -924,7 +773,7 @@ templates = {
             {% for post in posts %}
             <div class="post">
                 <div class="post-header">
-                    <img src="{{ url_for('static', filename='uploads/' + post[5]) if post[5] else 'uploads/default_avatar.png' }}" alt="Avatar">
+                    <img src="{{ url_for('static', filename='uploads/' + post[5]) if post[5] else 'https://via.placeholder.com/150?text=Avatar' }}" alt="Avatar">
                     <div class="post-info">
                         <h3>{{ post[4] }}</h3>
                         <time>{{ post[3] }}</time>
