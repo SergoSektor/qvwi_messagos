@@ -4,38 +4,7 @@
     <title>Галерея фотографий</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; background: #f0f2f5; color: #333; }
-        
-        /* Боковая панель */
-        .sidebar { width: 280px; background: #fff; height: 100vh; position: fixed; padding: 25px; box-shadow: 0 0 15px rgba(0,0,0,0.05); }
-        .profile-card { text-align: center; padding-bottom: 25px; border-bottom: 1px solid #eaeaea; margin-bottom: 25px; }
-        .profile-card img { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid #4a76a8; }
-        .profile-card h3 { margin: 15px 0 5px; font-size: 1.3rem; }
-        .profile-card p { color: #777; font-size: 0.9rem; }
-        .nav { margin-top: 15px; }
-        .nav a { display: flex; align-items: center; padding: 14px 15px; text-decoration: none; color: #444; border-radius: 8px; margin-bottom: 8px; transition: all 0.2s; }
-        .nav a:hover { background: #f0f2f5; transform: translateX(3px); }
-        .nav a.active { background: #4a76a8; color: white; }
-        .nav a i { margin-right: 12px; font-size: 1.2rem; }
-        
-        /* Основной контент */
-        .content { flex: 1; margin-left: 280px; padding: 30px; }
-        .section { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 3px 15px rgba(0,0,0,0.03); margin-bottom: 30px; }
-        .section-title { margin-bottom: 25px; }
-        .section-title h1 { font-size: 1.8rem; color: #2c3e50; }
-        .section-title p { color: #65676b; font-size: 1.1rem; }
-        
-        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 25px; }
-        .gallery-item { border-radius: 12px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.08); transition: all 0.3s; }
-        .gallery-item:hover { transform: translateY(-8px); box-shadow: 0 12px 25px rgba(0,0,0,0.15); }
-        .gallery-item img { width: 100%; height: 220px; object-fit: cover; display: block; transition: transform 0.3s; }
-        .gallery-item:hover img { transform: scale(1.05); }
-        
-        .empty-gallery { text-align: center; padding: 50px; color: #95a5a6; }
-        .empty-gallery i { font-size: 3rem; margin-bottom: 20px; opacity: 0.5; }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="sidebar">
@@ -92,5 +61,9 @@
             {% endif %}
         </div>
     </div>
+    <button class="theme-toggle" id="themeToggle">
+        <i class="fas fa-moon"></i>
+    </button>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 </body>
 </html>

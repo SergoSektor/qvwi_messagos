@@ -4,56 +4,7 @@
     <title>Друзья</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; background: #f0f2f5; color: #333; }
-        
-        /* Боковая панель */
-        .sidebar { width: 280px; background: #fff; height: 100vh; position: fixed; padding: 25px; box-shadow: 0 0 15px rgba(0,0,0,0.05); }
-        .profile-card { text-align: center; padding-bottom: 25px; border-bottom: 1px solid #eaeaea; margin-bottom: 25px; }
-        .profile-card img { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid #4a76a8; }
-        .profile-card h3 { margin: 15px 0 5px; font-size: 1.3rem; }
-        .profile-card p { color: #777; font-size: 0.9rem; }
-        .nav { margin-top: 15px; }
-        .nav a { display: flex; align-items: center; padding: 14px 15px; text-decoration: none; color: #444; border-radius: 8px; margin-bottom: 8px; transition: all 0.2s; }
-        .nav a:hover { background: #f0f2f5; transform: translateX(3px); }
-        .nav a.active { background: #4a76a8; color: white; }
-        .nav a i { margin-right: 12px; font-size: 1.2rem; }
-        
-        /* Основной контент */
-        .content { flex: 1; margin-left: 280px; padding: 30px; }
-        .section { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 3px 15px rgba(0,0,0,0.03); margin-bottom: 30px; }
-        .section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
-        .section-title h2 { font-size: 1.5rem; color: #2c3e50; }
-        .badge { background: #e74c3c; color: white; border-radius: 50%; width: 25px; height: 25px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; margin-left: 10px; }
-        
-        /* Поиск */
-        .search-container { display: flex; margin-bottom: 25px; }
-        .search-container input { flex: 1; padding: 14px 20px; border: 1px solid #ddd; border-radius: 30px 0 0 30px; font-size: 1rem; outline: none; }
-        .search-container button { background: #4a76a8; color: white; border: none; padding: 0 25px; border-radius: 0 30px 30px 0; cursor: pointer; font-size: 1rem; }
-        
-        /* Списки */
-        .friends-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 25px; }
-        .friend-card { background: #f9f9f9; border-radius: 12px; overflow: hidden; transition: all 0.3s; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
-        .friend-card:hover { transform: translateY(-8px); box-shadow: 0 12px 25px rgba(0,0,0,0.1); }
-        .friend-header { padding: 25px; text-align: center; background: linear-gradient(to right, #4a76a8, #5c8ac0); color: white; }
-        .friend-avatar { width: 90px; height: 90px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.3); object-fit: cover; margin-bottom: 15px; }
-        .friend-name { font-size: 1.2rem; font-weight: 600; }
-        .friend-actions { padding: 20px; display: flex; justify-content: center; gap: 12px; }
-        .friend-actions a { padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.95rem; transition: background 0.2s; text-decoration: none; display: inline-block; }
-        .friend-actions .btn-accept { background: #2ecc71; color: white; }
-        .friend-actions .btn-reject { background: #e74c3c; color: white; }
-        .friend-actions .btn-remove { background: #f0f0f0; color: #333; }
-        .friend-actions .btn-message { background: #3498db; color: white; }
-        .friend-actions a:hover { opacity: 0.9; transform: translateY(-2px); }
-        
-        /* Пустые состояния */
-        .empty-state { text-align: center; padding: 50px; color: #95a5a6; }
-        .empty-state i { font-size: 3.5rem; margin-bottom: 20px; opacity: 0.5; }
-        .empty-state p { font-size: 1.1rem; }
-        
-        .flash-message { padding: 15px; background: #d4edda; border-radius: 8px; margin-bottom: 20px; color: #155724; }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="sidebar">
@@ -206,5 +157,9 @@
             });
         });
     </script>
+    <button class="theme-toggle" id="themeToggle">
+        <i class="fas fa-moon"></i>
+    </button>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 </body>
 </html>
