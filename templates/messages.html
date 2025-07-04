@@ -1,8 +1,8 @@
-<!-- templates/messages.html -->
 <!DOCTYPE html>
 <html>
 <head>
     <title>Сообщения</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
     <style>
@@ -62,32 +62,32 @@
             <p>{{ user[4] or 'Статус не указан' }}</p>
         </div>
         <div class="nav">
-            <a href="{{ url_for('feed') }}">
-                <i class="fas fa-newspaper"></i> Новости
-            </a>
-            <a href="{{ url_for('profile') }}">
-                <i class="fas fa-user"></i> Профиль
-            </a>
-            <a href="{{ url_for('gallery') }}">
-                <i class="fas fa-images"></i> Фотографии
-            </a>
-            <a href="{{ url_for('messages') }}" class="active">
-                <i class="fas fa-comments"></i> Сообщения
-            </a>
-            <a href="{{ url_for('friends') }}">
-                <i class="fas fa-user-friends"></i> Друзья
-            </a>
-            <a href="{{ url_for('logout') }}">
-                <i class="fas fa-sign-out-alt"></i> Выйти
-            </a>
-        </div>
+    <a href="{{ url_for('feed.feed') }}">
+        <i class="fas fa-newspaper"></i> Новости
+    </a>
+    <a href="{{ url_for('profile.profile') }}">
+        <i class="fas fa-user"></i> Профиль
+    </a>
+    <a href="{{ url_for('gallery.gallery') }}">
+        <i class="fas fa-images"></i> Фотографии
+    </a>
+    <a href="{{ url_for('messages.messages') }}" class="active">
+        <i class="fas fa-comments"></i> Сообщения
+    </a>
+    <a href="{{ url_for('friends.friends') }}">
+        <i class="fas fa-user-friends"></i> Друзья
+    </a>
+    <a href="{{ url_for('static.logout') }}">
+        <i class="fas fa-sign-out-alt"></i> Выйти
+    </a>
+</div>
     </div>
 
     <div class="content">
         <div class="friends-list">
             <h2>Диалоги</h2>
             {% for friend in friends %}
-            <div class="friend-item {% if friend_id == friend[0] %}active{% endif %}" onclick="location.href='{{ url_for('messages', friend_id=friend[0]) }}'">
+            <div class="friend-item {% if friend_id == friend[0] %}active{% endif %}" onclick="location.href='{{ url_for('messages.messages', friend_id=friend[0]) }}'">
                 <img src="{% if friend[2] %}{{ url_for('static', filename='uploads/' + friend[2]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" alt="Avatar">
                 <div class="friend-info">
                     <h3>{{ friend[1] }}</h3>

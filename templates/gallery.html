@@ -1,8 +1,8 @@
-<!-- templates/gallery.html -->
 <!DOCTYPE html>
 <html>
 <head>
     <title>Галерея фотографий</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -45,22 +45,23 @@
             <p>{{ user[4] or 'Статус не указан' }}</p>
         </div>
         <div class="nav">
-            <a href="{{ url_for('feed') }}">
+            <!-- Исправленные ссылки с указанием blueprint -->
+            <a href="{{ url_for('feed.feed') }}">
                 <i class="fas fa-newspaper"></i> Новости
             </a>
-            <a href="{{ url_for('profile') }}">
+            <a href="{{ url_for('profile.profile') }}">
                 <i class="fas fa-user"></i> Профиль
             </a>
-            <a href="{{ url_for('gallery') }}" class="active">
+            <a href="{{ url_for('gallery.gallery') }}" class="active">
                 <i class="fas fa-images"></i> Фотографии
             </a>
-            <a href="{{ url_for('messages') }}">
+            <a href="{{ url_for('messages.messages') }}">
                 <i class="fas fa-comments"></i> Сообщения
             </a>
-            <a href="{{ url_for('friends') }}">
+            <a href="{{ url_for('friends.friends') }}">
                 <i class="fas fa-user-friends"></i> Друзья
             </a>
-            <a href="{{ url_for('logout') }}">
+            <a href="{{ url_for('static.logout') }}">
                 <i class="fas fa-sign-out-alt"></i> Выйти
             </a>
         </div>
@@ -78,7 +79,7 @@
                     {% for avatar in avatars %}
                     <div class="gallery-item">
                         <img src="{{ url_for('static', filename='uploads/' + avatar) }}" alt="Фото" 
-        onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
+                        onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
                     </div>
                     {% endfor %}
                 </div>

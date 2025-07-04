@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Лента новостей</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -48,22 +49,23 @@
             <p>{{ user[4] or 'Статус не указан' }}</p>
         </div>
         <div class="nav">
-            <a href="{{ url_for('feed') }}" class="active">
+            <!-- Исправленные ссылки с указанием blueprint -->
+            <a href="{{ url_for('feed.feed') }}" class="active">
                 <i class="fas fa-newspaper"></i> Новости
             </a>
-            <a href="{{ url_for('profile') }}">
+            <a href="{{ url_for('profile.profile') }}">
                 <i class="fas fa-user"></i> Профиль
             </a>
-            <a href="{{ url_for('gallery') }}">
+            <a href="{{ url_for('gallery.gallery') }}">
                 <i class="fas fa-images"></i> Фотографии
             </a>
-            <a href="{{ url_for('messages') }}">
+            <a href="{{ url_for('messages.messages') }}">
                 <i class="fas fa-comments"></i> Сообщения
             </a>
-            <a href="{{ url_for('friends') }}">
+            <a href="{{ url_for('friends.friends') }}">
                 <i class="fas fa-user-friends"></i> Друзья
             </a>
-            <a href="{{ url_for('logout') }}">
+            <a href="{{ url_for('static.logout') }}">
                 <i class="fas fa-sign-out-alt"></i> Выйти
             </a>
         </div>
@@ -71,7 +73,8 @@
 
     <div class="content">
         <div class="create-post">
-            <form method="POST" action="{{ url_for('create_post') }}">
+            <!-- Исправленный action для формы -->
+            <form method="POST" action="{{ url_for('feed.create_post') }}">
                 <textarea name="content" placeholder="Что у вас нового?" required></textarea>
                 <button type="submit"><i class="fas fa-paper-plane"></i> Опубликовать</button>
             </form>
@@ -81,11 +84,12 @@
             {% for post in posts %}
             <div class="post">
                 <div class="post-header">
-                    <a href="{{ url_for('profile', user_id=post[1]) }}">
-                        <img src="{{ url_for('static', filename='uploads/' + post[5]) if post[5] else 'uploads/default_avatar.png' }}" alt="Avatar">
+                    <!-- Исправленная ссылка на профиль -->
+                    <a href="{{ url_for('profile.profile', user_id=post[1]) }}">
+                        <img src="{{ url_for('static', filename='uploads/' + post[5]) if post[5] else url_for('static', filename='uploads/default_avatar.png') }}" alt="Avatar">
                     </a>
                     <div class="post-info">
-                        <a href="{{ url_for('profile', user_id=post[1]) }}"><h3>{{ post[4] }}</h3></a>
+                        <a href="{{ url_for('profile.profile', user_id=post[1]) }}"><h3>{{ post[4] }}</h3></a>
                         <time>{{ post[3] }}</time>
                     </div>
                 </div>
@@ -94,7 +98,7 @@
                 </div>
                 <div class="post-actions">
                     {% if post[1] == session['user_id'] %}
-                    <button class="delete-btn" onclick="if(confirm('Удалить этот пост?')) { window.location.href = '/delete_post/{{ post[0] }}'; }">
+                    <button class="delete-btn" onclick="if(confirm('Удалить этот пост?')) { window.location.href = '{{ url_for('feed.delete_post', post_id=post[0]) }}'; }">
                         <i class="fas fa-trash"></i> Удалить
                     </button>
                     {% endif %}
