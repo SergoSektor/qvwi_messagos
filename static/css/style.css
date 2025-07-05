@@ -735,33 +735,37 @@ button {
 
 /* Gallery Styles */
 .gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 15px;
+    padding: 15px;
+}
+
+.gallery-item {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    aspect-ratio: 1/1; /* Фиксируем соотношение сторон */
 }
 
 .gallery-item img {
-  width: 100%;
-  height: 200px;
-  object-fit: cover;
-  border-radius: 8px;
-  transition: transform 0.3s;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
 }
 
-.gallery-item img:hover {
-  transform: scale(1.05);
-}
-
+/* Стили для пустой галереи */
 .empty-gallery {
-  text-align: center;
-  padding: 50px;
-  color: var(--secondary-text);
+    text-align: center;
+    padding: 40px;
 }
 
 .empty-gallery i {
-  font-size: 3.5rem;
-  margin-bottom: 20px;
-  opacity: 0.5;
+    font-size: 48px;
+    margin-bottom: 15px;
+    opacity: 0.3;
 }
 
 /* Theme Toggle Button */

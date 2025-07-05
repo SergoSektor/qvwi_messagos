@@ -1,15 +1,547 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>Друзья</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Друзья | Социальная сеть</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        :root {
+            --primary: #4a76a8;
+            --primary-light: #5a8fc7;
+            --primary-dark: #3a6997;
+            --bg-light: #f0f2f5;
+            --bg-card: #ffffff;
+            --text-dark: #333333;
+            --text-medium: #555555;
+            --text-light: #777777;
+            --border: #e0e0e0;
+            --success: #2ecc71;
+            --success-dark: #27ae60;
+            --danger: #e74c3c;
+            --danger-dark: #c0392b;
+            --warning: #f39c12;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-hover: 0 8px 25px rgba(0, 0, 0, 0.15);
+            --transition: all 0.3s ease;
+        }
+
+        .dark-theme {
+            --primary: #5a8fc7;
+            --primary-light: #6b9fd7;
+            --primary-dark: #4a7fb7;
+            --bg-light: #121212;
+            --bg-card: #1e1e1e;
+            --text-dark: #f0f0f0;
+            --text-medium: #c0c0c0;
+            --text-light: #909090;
+            --border: #333333;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+            --shadow-hover: 0 8px 25px rgba(0, 0, 0, 0.35);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+            transition: background-color 0.4s ease;
+        }
+
+        /* Боковая панель */
+        .sidebar {
+            width: 280px;
+            background-color: var(--bg-card);
+            height: 100vh;
+            position: fixed;
+            padding: 25px;
+            box-shadow: var(--shadow);
+            z-index: 100;
+            overflow-y: auto;
+            transition: var(--transition);
+        }
+
+        .profile-card {
+            text-align: center;
+            padding-bottom: 25px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 25px;
+        }
+
+        .profile-card img {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid var(--primary);
+            box-shadow: 0 4px 10px rgba(74, 118, 168, 0.2);
+            transition: var(--transition);
+        }
+
+        .profile-card h3 {
+            margin: 15px 0 5px;
+            font-size: 1.3rem;
+            color: var(--text-dark);
+        }
+
+        .profile-card p {
+            color: var(--text-medium);
+            font-size: 0.9rem;
+        }
+
+        .nav {
+            margin-top: 15px;
+        }
+
+        .nav a {
+            display: flex;
+            align-items: center;
+            padding: 14px 15px;
+            text-decoration: none;
+            color: var(--text-dark);
+            border-radius: 10px;
+            margin-bottom: 8px;
+            position: relative;
+            transition: var(--transition);
+        }
+
+        .nav a:hover {
+            background-color: rgba(74, 118, 168, 0.1);
+            transform: translateX(5px);
+        }
+
+        .nav a.active {
+            background-color: var(--primary);
+            color: white;
+            box-shadow: 0 4px 10px rgba(74, 118, 168, 0.3);
+        }
+
+        .nav a i {
+            margin-right: 12px;
+            font-size: 1.2rem;
+        }
+
+        .badge {
+            position: absolute;
+            right: 15px;
+            background-color: var(--danger);
+            color: white;
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: bold;
+            transition: var(--transition);
+        }
+
+        /* Основное содержимое */
+        .content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 40px;
+            min-height: 100vh;
+            transition: var(--transition);
+        }
+
+        /* Поиск */
+        .search-container {
+            margin-bottom: 40px;
+            position: relative;
+            max-width: 800px;
+            margin: 0 auto 40px;
+        }
+
+        .search-wrapper {
+            display: flex;
+            background: var(--bg-card);
+            border-radius: 50px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            transition: var(--transition);
+            border: 2px solid transparent;
+        }
+
+        .search-wrapper:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 6px 20px rgba(74, 118, 168, 0.25);
+            transform: translateY(-3px);
+        }
+
+        .search-wrapper input {
+            flex: 1;
+            padding: 18px 25px;
+            border: none;
+            background: transparent;
+            font-size: 1.1rem;
+            color: var(--text-dark);
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .search-wrapper input::placeholder {
+            color: var(--text-light);
+        }
+
+        .search-wrapper button {
+            padding: 0 30px;
+            border: none;
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+            font-size: 1.1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: var(--transition);
+        }
+
+        .search-wrapper button:hover {
+            background: var(--primary-dark);
+        }
+
+        .search-wrapper button i {
+            transition: transform 0.3s ease;
+        }
+
+        .search-wrapper button:hover i {
+            transform: translateX(3px);
+        }
+
+        /* Секции */
+        .section {
+            background: var(--bg-card);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            padding: 30px;
+            margin-bottom: 30px;
+            transition: var(--transition);
+        }
+
+        .section:hover {
+            box-shadow: var(--shadow-hover);
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-title h2 {
+            font-size: 1.6rem;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title .badge {
+            position: static;
+            margin-left: 12px;
+        }
+
+        /* Карточки друзей */
+        .friends-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
+            margin-top: 20px;
+        }
+
+        .friend-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            transition: var(--transition);
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border);
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        .friend-card:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-hover);
+            border-color: var(--primary-light);
+        }
+
+        .friend-header {
+            padding: 25px 20px 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .friend-avatar {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid var(--primary);
+            margin: 0 auto 15px;
+            background: var(--bg-light);
+            padding: 3px;
+            transition: var(--transition);
+        }
+
+        .friend-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 5px;
+            transition: var(--transition);
+        }
+
+        .friend-actions {
+            padding: 20px;
+            display: flex;
+            gap: 10px;
+            margin-top: auto;
+            border-top: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.02);
+            transition: var(--transition);
+        }
+
+        .friend-actions a {
+            flex: 1;
+            text-align: center;
+            padding: 12px 0;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-message {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-message:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        .btn-accept {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-accept:hover {
+            background: var(--success-dark);
+            transform: translateY(-2px);
+        }
+
+        .btn-reject {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-reject:hover {
+            background: var(--danger-dark);
+            transform: translateY(-2px);
+        }
+
+        .btn-remove {
+            background: rgba(231, 76, 60, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+        }
+
+        .btn-remove:hover {
+            background: rgba(231, 76, 60, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .btn-add {
+            background: rgba(46, 204, 113, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+
+        .btn-add:hover {
+            background: rgba(46, 204, 113, 0.2);
+            transform: translateY(-2px);
+        }
+
+        /* Пустые состояния */
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: var(--text-medium);
+            transition: var(--transition);
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: var(--primary-light);
+            margin-bottom: 20px;
+            opacity: 0.7;
+            transition: var(--transition);
+        }
+
+        .empty-state h3 {
+            font-size: 1.4rem;
+            margin-bottom: 15px;
+            color: var(--text-dark);
+        }
+
+        .empty-state p {
+            max-width: 500px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* Уведомления */
+        .flash-message {
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            border-radius: 10px;
+            background-color: rgba(46, 204, 113, 0.15);
+            color: var(--success);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: var(--transition);
+        }
+
+        .flash-message.error {
+            background-color: rgba(231, 76, 60, 0.15);
+            color: var(--danger);
+            border-color: rgba(231, 76, 60, 0.3);
+        }
+
+        /* Переключатель темы */
+        .theme-toggle {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            font-size: 1.4rem;
+            transition: var(--transition);
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1) rotate(15deg);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Анимации */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .friend-card:nth-child(2) { animation-delay: 0.1s; }
+        .friend-card:nth-child(3) { animation-delay: 0.2s; }
+        .friend-card:nth-child(4) { animation-delay: 0.3s; }
+        .friend-card:nth-child(5) { animation-delay: 0.4s; }
+        .friend-card:nth-child(6) { animation-delay: 0.5s; }
+
+        /* Адаптивность */
+        @media (max-width: 1200px) {
+            .friends-grid {
+                grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            }
+        }
+
+        @media (max-width: 992px) {
+            .sidebar {
+                width: 240px;
+                padding: 20px;
+            }
+            
+            .content {
+                margin-left: 240px;
+                padding: 30px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+                padding: 20px;
+            }
+            
+            .content {
+                margin-left: 0;
+                padding: 25px;
+            }
+            
+            .friends-grid {
+                grid-template-columns: repeat(auto-fill, minmax(100%, 1fr));
+            }
+            
+            .theme-toggle {
+                bottom: 20px;
+                right: 20px;
+                width: 50px;
+                height: 50px;
+                font-size: 1.2rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .friend-actions {
+                flex-direction: column;
+            }
+            
+            .search-wrapper button span {
+                display: none;
+            }
+            
+            .search-wrapper button {
+                padding: 0 20px;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="sidebar">
         <div class="profile-card">
-            <img src="{% if user[5] %}{{ url_for('static', filename='uploads/' + user[5]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" alt="Avatar">
+            <img src="{% if user[5] %}{{ url_for('static', filename='uploads/' + user[5]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" 
+                 alt="Avatar"
+                 onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
             <h3>{{ user[1] }}</h3>
             <p>{{ user[4] or 'Статус не указан' }}</p>
         </div>
@@ -37,34 +569,44 @@
     </div>
 
     <div class="content">
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="flash-message">{{ messages[0] }}</div>
+                {% for category, message in messages %}
+                    <div class="flash-message {% if category == 'error' %}error{% endif %}">
+                        <i class="fas {% if category == 'error' %}fa-exclamation-circle{% else %}fa-check-circle{% endif %}"></i>
+                        {{ message }}
+                    </div>
+                {% endfor %}
             {% endif %}
         {% endwith %}
         
         <div class="search-container">
             <form method="GET" action="{{ url_for('friends.friends') }}">
-                <input type="text" name="search" placeholder="Найти друзей..." value="{{ search_query }}">
-                <button type="submit"><i class="fas fa-search"></i> Поиск</button>
+                <div class="search-wrapper">
+                    <input type="text" name="search" placeholder="Найти друзей по имени..." value="{{ search_query }}">
+                    <button type="submit">
+                        <i class="fas fa-search"></i> <span>Поиск</span>
+                    </button>
+                </div>
             </form>
         </div>
 
         {% if search_results %}
         <div class="section">
             <div class="section-title">
-                <h2>Результаты поиска</h2>
+                <h2><i class="fas fa-search"></i> Результаты поиска</h2>
             </div>
             <div class="friends-grid">
                 {% for user in search_results %}
                 <div class="friend-card">
                     <div class="friend-header">
                         <img src="{{ url_for('static', filename='uploads/' + user[2]) if user[2] else url_for('static', filename='uploads/default_avatar.png') }}" 
-                             class="friend-avatar" alt="{{ user[1] }}">
+                             class="friend-avatar" alt="{{ user[1] }}"
+                             onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
                         <div class="friend-name">{{ user[1] }}</div>
                     </div>
                     <div class="friend-actions">
-                        <a href="{{ url_for('friends.add_friend', friend_id=user[0]) }}" class="btn-message">
+                        <a href="{{ url_for('friends.add_friend', friend_id=user[0]) }}" class="btn-add">
                             <i class="fas fa-user-plus"></i> Добавить
                         </a>
                     </div>
@@ -76,7 +618,7 @@
 
         <div class="section">
             <div class="section-title">
-                <h2>Запросы в друзья {% if requests %}<span class="badge">{{ requests|length }}</span>{% endif %}</h2>
+                <h2><i class="fas fa-user-clock"></i> Запросы в друзья {% if requests %}<span class="badge">{{ requests|length }}</span>{% endif %}</h2>
             </div>
             
             {% if requests %}
@@ -85,7 +627,8 @@
                 <div class="friend-card">
                     <div class="friend-header">
                         <img src="{{ url_for('static', filename='uploads/' + req[2]) if req[2] else url_for('static', filename='uploads/default_avatar.png') }}" 
-                             class="friend-avatar" alt="{{ req[1] }}">
+                             class="friend-avatar" alt="{{ req[1] }}"
+                             onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
                         <div class="friend-name">{{ req[1] }}</div>
                     </div>
                     <div class="friend-actions">
@@ -110,7 +653,7 @@
 
         <div class="section">
             <div class="section-title">
-                <h2>Мои друзья {% if friends %}<span class="badge">{{ friends|length }}</span>{% endif %}</h2>
+                <h2><i class="fas fa-users"></i> Мои друзья {% if friends %}<span class="badge">{{ friends|length }}</span>{% endif %}</h2>
             </div>
             
             {% if friends %}
@@ -119,7 +662,8 @@
                 <div class="friend-card">
                     <div class="friend-header">
                         <img src="{{ url_for('static', filename='uploads/' + friend[2]) if friend[2] else url_for('static', filename='uploads/default_avatar.png') }}" 
-                             class="friend-avatar" alt="{{ friend[1] }}">
+                             class="friend-avatar" alt="{{ friend[1] }}"
+                             onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
                         <div class="friend-name">{{ friend[1] }}</div>
                     </div>
                     <div class="friend-actions">
@@ -143,12 +687,39 @@
         </div>
     </div>
 
+    <button class="theme-toggle" id="themeToggle">
+        <i class="fas fa-moon"></i>
+    </button>
+
     <script>
+        // Переключение темы
+        const themeToggle = document.getElementById('themeToggle');
+        const body = document.body;
+        
+        // Проверяем сохраненную тему
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            body.classList.add('dark-theme');
+            themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+        }
+        
+        themeToggle.addEventListener('click', () => {
+            body.classList.toggle('dark-theme');
+            
+            if (body.classList.contains('dark-theme')) {
+                localStorage.setItem('theme', 'dark');
+                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                localStorage.setItem('theme', 'light');
+                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+        });
+        
         // Анимация карточек
         document.querySelectorAll('.friend-card').forEach(card => {
             card.addEventListener('mouseenter', () => {
                 card.style.transform = 'translateY(-8px)';
-                card.style.boxShadow = '0 12px 25px rgba(0,0,0,0.1)';
+                card.style.boxShadow = '0 12px 25px rgba(0,0,0,0.15)';
             });
             
             card.addEventListener('mouseleave', () => {
@@ -156,10 +727,22 @@
                 card.style.boxShadow = '';
             });
         });
+        
+        // Анимация при фокусе на поиск
+        const searchWrapper = document.querySelector('.search-wrapper');
+        const searchInput = document.querySelector('.search-wrapper input');
+        
+        if (searchInput) {
+            searchInput.addEventListener('focus', () => {
+                searchWrapper.style.boxShadow = '0 6px 20px rgba(74, 118, 168, 0.25)';
+                searchWrapper.style.transform = 'translateY(-3px)';
+            });
+            
+            searchInput.addEventListener('blur', () => {
+                searchWrapper.style.boxShadow = '';
+                searchWrapper.style.transform = '';
+            });
+        }
     </script>
-    <button class="theme-toggle" id="themeToggle">
-        <i class="fas fa-moon"></i>
-    </button>
-    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 </body>
 </html>
