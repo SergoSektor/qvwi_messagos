@@ -1,6 +1,9 @@
-from flask import Blueprint, render_template, session, jsonify
+from flask import Blueprint, render_template, session, jsonify, redirect, url_for
 from models import get_db
 from datetime import datetime
+import os
+from flask import request, current_app
+from werkzeug.utils import secure_filename
 
 bp = Blueprint('messages', __name__)
 
@@ -85,6 +88,7 @@ def get_messages(friend_id):
             'receiver_id': msg['receiver_id'],
             'content': msg['content'],
             'file_path': msg['file_path'],
+            'file_name': os.path.basename(msg['file_path']) if msg['file_path'] else None,
             'timestamp': msg['timestamp'],
             'username': msg['username'],
             'avatar': msg['avatar']
@@ -92,16 +96,56 @@ def get_messages(friend_id):
     
     return jsonify(messages=formatted_messages)
 
-@bp.route('/api/typing_status/<int:friend_id>')
-def get_typing_status(friend_id):
+def allowed_file(filename):
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'mp3', 'mp4', 'txt'}
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@bp.route('/upload_message_file', methods=['POST'])
+def upload_message_file():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
+        
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+        
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+        
+    receiver_id = request.form.get('receiver_id')
+    if not receiver_id:
+        return jsonify({'error': 'No receiver specified'}), 400
+        
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'File type not allowed'}), 400
+        
+    # Генерация уникального имени файла
+    filename = secure_filename(file.filename)
+    unique_filename = f"{session['user_id']}_{receiver_id}_{int(datetime.now().timestamp())}_{filename}"
     
-    user_id = session['user_id']
-    key = f"{friend_id}_{user_id}"
-    is_typing = typing_status.get(key, False)
-    
-    # Сбрасываем статус после проверки
-    typing_status[key] = False
-    
-    return jsonify({'is_typing': is_typing})
+    try:
+        upload_folder = current_app.config['MESSAGE_FILES_FOLDER']
+        os.makedirs(upload_folder, exist_ok=True)
+        file_path = os.path.join(upload_folder, unique_filename)
+        file.save(file_path)
+        
+        # Сохраняем сообщение в БД
+        conn = get_db()
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO messages (sender_id, receiver_id, content, file_path) VALUES (?, ?, ?, ?)",
+            (session['user_id'], receiver_id, '', unique_filename)
+        )
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'file_path': unique_filename,
+            'original_name': filename,
+            'message_id': c.lastrowid
+        })
+    except Exception as e:
+        current_app.logger.error(f"File upload error: {str(e)}")
+        return jsonify({'error': 'File upload failed'}), 500

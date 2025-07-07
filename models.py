@@ -5,16 +5,23 @@ def init_db():
     conn = sqlite3.connect('social_network.db')
     c = conn.cursor()
     
-    # Таблица пользователей
+    # Таблица пользователей с новым полем role
     c.execute('''CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
                 email TEXT,
                 bio TEXT,
-                avatar TEXT)''')
+                avatar TEXT,
+                role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin', 'moderator', 'user')))''')
     
-    # Таблица друзей
+    # Проверяем наличие столбца role в существующей таблице
+    c.execute("PRAGMA table_info(users)")
+    columns = [col[1] for col in c.fetchall()]
+    if 'role' not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'moderator', 'user'))")
+    
+    # Остальные таблицы без изменений
     c.execute('''CREATE TABLE IF NOT EXISTS friends (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
@@ -23,7 +30,6 @@ def init_db():
                 FOREIGN KEY(user_id) REFERENCES users(id),
                 FOREIGN KEY(friend_id) REFERENCES users(id))''')
     
-    # Таблица сообщений
     c.execute('''CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 sender_id INTEGER NOT NULL,
@@ -34,7 +40,6 @@ def init_db():
                 FOREIGN KEY(sender_id) REFERENCES users(id),
                 FOREIGN KEY(receiver_id) REFERENCES users(id))''')
     
-    # Таблица постов
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
@@ -42,25 +47,31 @@ def init_db():
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(user_id) REFERENCES users(id))''')
     
-    # Добавляем тестовых пользователей
+    # Тестовые пользователи с ролями
     users = [
-        ('alex', generate_password_hash('pass123'), 'alex@example.com', 'none', 'alex.gif'),
-        ('masha', generate_password_hash('pass123'), 'masha@example.com', 'none', 'masha.jpg'),
-        ('sasha', generate_password_hash('pass123'), 'sasha@example.com', 'none', 'sasha.png'),
-        ('dasha', generate_password_hash('pass123'), 'dasha@example.com', '123', 'dasha.gif'),
+        ('alex', generate_password_hash('pass123'), 'alex@example.com', 'none', 'alex.gif', 'admin'),
+        ('masha', generate_password_hash('pass123'), 'masha@example.com', 'none', 'masha.jpg', 'moderator'),
+        ('sasha', generate_password_hash('pass123'), 'sasha@example.com', 'none', 'sasha.png', 'user'),
+        ('dasha', generate_password_hash('pass123'), 'dasha@example.com', '123', 'dasha.gif', 'user'),
     ]
     
     for user in users:
         try:
-            avatar = user[4] if len(user) > 4 and user[4] else 'default_avatar.png'
-            c.execute("INSERT INTO users (username, password, email, bio, avatar) VALUES (?, ?, ?, ?, ?)", 
-                     (user[0], user[1], user[2], user[3] if len(user) > 3 else 'none', avatar))
-        except:
-            pass
+            # Все поля теперь включают роль
+            c.execute("""INSERT INTO users 
+                      (username, password, email, bio, avatar, role) 
+                      VALUES (?, ?, ?, ?, ?, ?)""", 
+                      user)
+        except sqlite3.IntegrityError:
+            # Обновляем роль для существующих пользователей
+            c.execute("""UPDATE users SET role = ? 
+                      WHERE username = ?""", 
+                      (user[5], user[0]))
     
     conn.commit()
     conn.close()
 
+# Остальные функции без изменений
 def get_db():
     conn = sqlite3.connect('social_network.db')
     conn.row_factory = sqlite3.Row

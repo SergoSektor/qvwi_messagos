@@ -14,26 +14,30 @@
             <p>{{ user[4] or 'Статус не указан' }}</p>
         </div>
         <div class="nav">
-            <!-- Исправленные ссылки с указанием blueprint -->
-            <a href="{{ url_for('feed.feed') }}" class="active">
-                <i class="fas fa-newspaper"></i> Новости
-            </a>
-            <a href="{{ url_for('profile.profile') }}">
-                <i class="fas fa-user"></i> Профиль
-            </a>
-            <a href="{{ url_for('gallery.gallery') }}">
-                <i class="fas fa-images"></i> Фотографии
-            </a>
-            <a href="{{ url_for('messages.messages') }}">
-                <i class="fas fa-comments"></i> Сообщения
-            </a>
-            <a href="{{ url_for('friends.friends') }}">
-                <i class="fas fa-user-friends"></i> Друзья
-            </a>
-            <a href="{{ url_for('static.logout') }}">
-                <i class="fas fa-sign-out-alt"></i> Выйти
-            </a>
-        </div>
+                <a href="{{ url_for('feed.feed') }}">
+                    <i class="fas fa-newspaper"></i> Новости
+                </a>
+                <a href="{{ url_for('profile.profile') }}">
+                    <i class="fas fa-user"></i> Профиль
+                </a>
+                <a href="{{ url_for('gallery.gallery') }}">
+                    <i class="fas fa-images"></i> Фотографии
+                </a>
+                <a href="{{ url_for('messages.messages') }}" {% if active_page == 'messages' %}class="active"{% endif %}>
+                    <i class="fas fa-comments"></i> Сообщения
+                </a>
+                <a href="{{ url_for('friends.friends') }}" {% if active_page == 'friends' %}class="active"{% endif %}>
+                    <i class="fas fa-user-friends"></i> Друзья
+                </a>
+                {% if user[6] == 'admin' %}  <!-- Проверка на администратора -->
+                <a href="{{ url_for('admin.admin') }}" {% if active_page == 'admin' %}class="active"{% endif %}>
+                    <i class="fas fa-cog"></i> Администрирование
+                </a>
+                {% endif %}
+                <a href="{{ url_for('static.logout') }}">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </a>
+            </div>
     </div>
 
     <div class="content">

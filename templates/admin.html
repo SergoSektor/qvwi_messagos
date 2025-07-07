@@ -59,6 +59,38 @@
         .system-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; }
         .control-card { background: #f8f9fa; padding: 25px; border-radius: 12px; }
         .control-card h3 { margin-bottom: 15px; color: #2c3e50; }
+
+        /* Переключатель темы */
+        .theme-toggle {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            font-size: 1.4rem;
+            transition: var(--transition);
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1) rotate(15deg);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Анимации */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body>
@@ -69,30 +101,30 @@
             <p>{{ user[4] or 'Статус не указан' }}</p>
         </div>
         <div class="nav">
-            <a href="{{ url_for('feed') }}">
-                <i class="fas fa-newspaper"></i> Новости
-            </a>
-            <a href="{{ url_for('profile') }}">
-                <i class="fas fa-user"></i> Профиль
-            </a>
-            <a href="{{ url_for('gallery') }}">
-                <i class="fas fa-images"></i> Фотографии
-            </a>
-            <a href="{{ url_for('messages') }}">
-                <i class="fas fa-comments"></i> Сообщения
-            </a>
-            <a href="{{ url_for('friends') }}">
-                <i class="fas fa-user-friends"></i> Друзья
-            </a>
-            {% if user[6] %}  <!-- Проверка на администратора -->
-            <a href="{{ url_for('admin') }}" class="active">
-                <i class="fas fa-cog"></i> Администрирование
-            </a>
-            {% endif %}
-            <a href="{{ url_for('logout') }}">
-                <i class="fas fa-sign-out-alt"></i> Выйти
-            </a>
-        </div>
+                <a href="{{ url_for('feed.feed') }}">
+                    <i class="fas fa-newspaper"></i> Новости
+                </a>
+                <a href="{{ url_for('profile.profile') }}">
+                    <i class="fas fa-user"></i> Профиль
+                </a>
+                <a href="{{ url_for('gallery.gallery') }}">
+                    <i class="fas fa-images"></i> Фотографии
+                </a>
+                <a href="{{ url_for('messages.messages') }}" {% if active_page == 'messages' %}class="active"{% endif %}>
+                    <i class="fas fa-comments"></i> Сообщения
+                </a>
+                <a href="{{ url_for('friends.friends') }}" {% if active_page == 'friends' %}class="active"{% endif %}>
+                    <i class="fas fa-user-friends"></i> Друзья
+                </a>
+                {% if user[6] == 'admin' or user[6] == 'moderator' %}  <!-- Проверка на администратора -->
+                <a href="{{ url_for('admin.admin') }}" {% if active_page == 'admin' %}class="active"{% endif %}>
+                    <i class="fas fa-cog"></i> Администрирование
+                </a>
+                {% endif %}
+                <a href="{{ url_for('static.logout') }}">
+                    <i class="fas fa-sign-out-alt"></i> Выйти
+                </a>
+            </div>
     </div>
 
     <div class="content">
@@ -148,8 +180,10 @@
                             <td>{{ u[1] }}</td>
                             <td>{{ u[3] }}</td>
                             <td>
-                                {% if u[6] %}
+                                {% if u[6] == 'admin' %}
                                     <span style="color: #2ecc71;">Администратор</span>
+                                {% elif u[6] == 'moderator' %}
+                                    <span style="color: #3498db;">Модератор</span>
                                 {% else %}
                                     Пользователь
                                 {% endif %}
@@ -159,11 +193,11 @@
                                 <a href="#" class="btn-edit">
                                     <i class="fas fa-edit"></i> Редактировать
                                 </a>
-                                <a href="{{ url_for('delete_user', user_id=u[0]) }}" class="btn-delete" onclick="return confirm('Вы уверены?')">
+                                <a href="{{ url_for('admin.delete_user', user_id=u[0]) }}" class="btn-delete" onclick="return confirm('Вы уверены?')">
                                     <i class="fas fa-trash"></i> Удалить
                                 </a>
-                                {% if not u[6] %}
-                                <a href="{{ url_for('make_admin', user_id=u[0]) }}" class="btn-toggle-admin">
+                                {% if u[6] != 'admin' %}
+                                <a href="{{ url_for('admin.make_admin', user_id=u[0]) }}" class="btn-toggle-admin">
                                     <i class="fas fa-user-shield"></i> Сделать админом
                                 </a>
                                 {% endif %}
@@ -276,5 +310,9 @@
             });
         });
     </script>
+    <button class="theme-toggle" id="themeToggle">
+        <i class="fas fa-moon"></i>
+    </button>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 </body>
 </html>

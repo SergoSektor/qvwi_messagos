@@ -480,12 +480,17 @@
                 <a href="{{ url_for('gallery.gallery') }}">
                     <i class="fas fa-images"></i> Фотографии
                 </a>
-                <a href="{{ url_for('messages.messages') }}" class="active">
+                <a href="{{ url_for('messages.messages') }}" {% if active_page == 'messages' %}class="active"{% endif %}>
                     <i class="fas fa-comments"></i> Сообщения
                 </a>
-                <a href="{{ url_for('friends.friends') }}">
+                <a href="{{ url_for('friends.friends') }}" {% if active_page == 'friends' %}class="active"{% endif %}>
                     <i class="fas fa-user-friends"></i> Друзья
                 </a>
+                {% if user[6] == 'admin' %}  <!-- Проверка на администратора -->
+                <a href="{{ url_for('admin.admin') }}" {% if active_page == 'admin' %}class="active"{% endif %}>
+                    <i class="fas fa-cog"></i> Администрирование
+                </a>
+                {% endif %}
                 <a href="{{ url_for('static.logout') }}">
                     <i class="fas fa-sign-out-alt"></i> Выйти
                 </a>
@@ -700,6 +705,91 @@
             // Автопрокрутка при загрузке
             scrollToBottom();
         });
+
+        // Прикрепление файлов
+    attachButton.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    // Обновленный обработчик для файлов
+    fileInput.addEventListener('change', function() {
+        if (this.files.length > 0 && friendId) {
+            const file = this.files[0];
+            
+            if (file.size > 15 * 1024 * 1024) {
+                alert('Файл слишком большой. Максимальный размер: 15 МБ');
+                this.value = '';
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('receiver_id', friendId);
+            
+            fetch('/upload_message_file', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Отправляем через сокет информацию о файле
+                    socket.emit('send_message', {
+                        receiver_id: friendId,
+                        content: 'Файл: ' + data.original_name,
+                        file_path: data.file_path,
+                        file_name: data.original_name,
+                        message_id: data.message_id
+                    });
+                    
+                    // Очищаем input
+                    this.value = '';
+                } else {
+                    alert('Ошибка загрузки файла: ' + (data.error || 'Неизвестная ошибка'));
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                alert('Ошибка при загрузке файла');
+            });
+        }
+    });
+
+    // Обновленный обработчик получения сообщений
+    socket.on('receive_message', function(data) {
+        const isSent = data.sender_id == userId;
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+        
+        let contentHtml;
+        if (data.file_path) {
+            // Это файл
+            const fileUrl = '{{ url_for("static", filename="message_files/") }}' + data.file_path;
+            const fileName = data.file_name || 'Файл';
+            contentHtml = `
+                <div class="message-file">
+                    <a href="${fileUrl}" target="_blank" download="${fileName}">
+                        <i class="fas fa-paperclip"></i> ${fileName}
+                    </a>
+                </div>
+                ${data.content ? `<div class="message-text">${data.content}</div>` : ''}
+            `;
+        } else {
+            // Текстовое сообщение
+            contentHtml = `<div class="message-text">${data.content}</div>`;
+        }
+        
+        messageDiv.innerHTML = `
+            ${contentHtml}
+            <div class="message-time">
+                ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                ${isSent ? '<i class="fas fa-check-double" style="margin-left: 5px;"></i>' : ''}
+            </div>
+        `;
+        
+        chatMessages.appendChild(messageDiv);
+        scrollToBottom();
+    });
     </script>
 </body>
 </html>

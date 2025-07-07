@@ -1,3 +1,5 @@
+import signal
+import sys
 from flask import Flask
 from flask_socketio import SocketIO
 from config import Config
@@ -12,13 +14,21 @@ from routes.messages import bp as messages_bp
 from routes.friends import bp as friends_bp
 from routes.static import bp as static_bp
 from gevent import monkey
+from routes.admin import bp as admin_bp
 monkey.patch_all()
 
 os.environ['GEVENT_SUPPORT'] = 'True'
 
+# Обработчик сигнала для корректного завершения
+def handle_sigint(signal, frame):
+    print("\nПолучен сигнал SIGINT (Ctrl+C). Завершение работы...")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, handle_sigint)
 
 app = Flask(__name__)
 app.config.from_object(Config)
+app.config['MAX_CONTENT_LENGTH'] = 15 * 1024 * 1024  # 15 MB limit
 
 # Инициализация базы данных
 init_db()
@@ -40,6 +50,7 @@ app.register_blueprint(gallery.bp)
 app.register_blueprint(messages.bp)
 app.register_blueprint(friends.bp)
 app.register_blueprint(static.bp)
+app.register_blueprint(admin_bp)
 
 # Импорт сокетов
 from sockets import register_socket_handlers
@@ -54,4 +65,8 @@ def datetimeformat(value, format='%d.%m.%Y %H:%M'):
 app.jinja_env.filters['datetimeformat'] = datetimeformat  # Регистрируем фильтр
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    try:
+        socketio.run(app, debug=True)
+    except KeyboardInterrupt:
+        print("\nПриложение завершено по запросу пользователя")
+        sys.exit(0)
