@@ -861,52 +861,64 @@
                     });
             }
             
-            // Прикрепление файлов
-            attachButton.addEventListener('click', () => {
-                fileInput.click();
-            });
-            
-            fileInput.addEventListener('change', function() {
-                if (this.files.length > 0 && friendId) {
-                    const file = this.files[0];
-                    
-                    if (file.size > 15 * 1024 * 1024) {
-                        alert('Файл слишком большой. Максимальный размер: 15 МБ');
-                        this.value = '';
-                        return;
-                    }
-                    
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    formData.append('receiver_id', friendId);
-                    
-                    fetch('/upload_message_file', {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // Отправляем через сокет информацию о файле
-                            socket.emit('send_message', {
-                                receiver_id: friendId,
-                                content: 'Файл: ' + data.original_name,
-                                file_path: data.file_path,
-                                file_name: data.original_name
-                            });
-                            
-                            // Очищаем input
-                            this.value = '';
-                        } else {
-                            alert('Ошибка загрузки файла: ' + (data.error || 'Неизвестная ошибка'));
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Ошибка:', error);
-                        alert('Ошибка при загрузке файла');
-                    });
+        attachButton.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        fileInput.addEventListener('change', function() {
+            if (this.files.length > 0 && friendId) {
+                const file = this.files[0];
+                
+                if (file.size > 15 * 1024 * 1024) {
+                    alert('Файл слишком большой. Максимальный размер: 15 МБ');
+                    this.value = '';
+                    return;
                 }
-            });
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('receiver_id', friendId);
+                formData.append('content', messageInput.value); // Добавляем текст сообщения
+                
+                // Показываем индикатор загрузки
+                const originalButtonText = sendButton.innerHTML;
+                sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                sendButton.disabled = true;
+                
+                fetch('/upload_message_file', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Очищаем поле ввода
+                        messageInput.value = '';
+                        
+                        // Файл успешно загружен, сообщение будет создано на сервере
+                        // Не нужно отправлять дополнительное сообщение через сокет
+                        console.log('Файл успешно загружен');
+                        
+                        // Прокручиваем к новым сообщениям
+                        setTimeout(scrollToBottom, 500);
+                    } else {
+                        alert('Ошибка загрузки файла: ' + (data.error || 'Неизвестная ошибка'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    alert('Ошибка при загрузке файла');
+                })
+                .finally(() => {
+                    // Восстанавливаем кнопку
+                    sendButton.innerHTML = originalButtonText;
+                    sendButton.disabled = false;
+                    
+                    // Очищаем input
+                    this.value = '';
+                });
+            }
+        });
             
             // Прокрутка вниз
             function scrollToBottom() {
@@ -1047,6 +1059,10 @@
                     callTimerInterval = null;
                 }
                 
+                // Сбрасываем отображение таймера
+                callTimer.style.display = 'none';
+                callTimer.textContent = '00:00'; // Сбрасываем текст таймера
+                
                 // Закрываем соединение
                 if (peerConnection) {
                     peerConnection.close();
@@ -1069,7 +1085,6 @@
                     });
                 }
             }
-            
             // Запуск таймера звонка
             function startCallTimer() {
                 callStartTime = new Date();
