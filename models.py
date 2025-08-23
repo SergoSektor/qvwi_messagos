@@ -5,7 +5,7 @@ def init_db():
     conn = sqlite3.connect('social_network.db')
     c = conn.cursor()
     
-    # Таблица пользователей с новым полем role
+    # Таблица пользователей
     c.execute('''CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
@@ -13,13 +13,23 @@ def init_db():
                 email TEXT,
                 bio TEXT,
                 avatar TEXT,
-                role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin', 'moderator', 'user')))''')
+                role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin', 'moderator', 'user')),
+                is_online BOOLEAN DEFAULT FALSE,
+                last_seen DATETIME)''')
     
-    # Проверяем наличие столбца role в существующей таблице
+    # Проверяем наличие столбцов
     c.execute("PRAGMA table_info(users)")
     columns = [col[1] for col in c.fetchall()]
+    
     if 'role' not in columns:
-        c.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'moderator', 'user'))")
+        c.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
+    
+    if 'is_online' not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN is_online BOOLEAN DEFAULT FALSE")
+    
+    if 'last_seen' not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN last_seen DATETIME")
+        c.execute("UPDATE users SET last_seen = datetime('now')")
     
     # Остальные таблицы без изменений
     c.execute('''CREATE TABLE IF NOT EXISTS friends (

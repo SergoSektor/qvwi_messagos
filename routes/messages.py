@@ -1,8 +1,7 @@
-from flask import Blueprint, render_template, session, jsonify, redirect, url_for
-from models import get_db
+from flask import Blueprint, render_template, session, jsonify, redirect, url_for, request, current_app
+from models import get_db, allowed_file
 from datetime import datetime
 import os
-from flask import request, current_app
 from werkzeug.utils import secure_filename
 
 bp = Blueprint('messages', __name__)
@@ -21,13 +20,13 @@ def messages(friend_id=None):
     c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
     user = c.fetchone()
     
-    # Получаем список друзей
-    c.execute('''SELECT users.id, users.username, users.avatar 
+    # Получаем список друзей с информацией об онлайн-статусе
+    c.execute('''SELECT users.id, users.username, users.avatar, users.is_online, users.last_seen 
                 FROM friends 
                 JOIN users ON friends.friend_id = users.id 
                 WHERE friends.user_id = ? AND friends.status = 'accepted'
                 UNION
-                SELECT users.id, users.username, users.avatar 
+                SELECT users.id, users.username, users.avatar, users.is_online, users.last_seen 
                 FROM friends 
                 JOIN users ON friends.user_id = users.id 
                 WHERE friends.friend_id = ? AND friends.status = 'accepted' 
@@ -58,7 +57,8 @@ def messages(friend_id=None):
                          friends=friends, 
                          messages=messages, 
                          friend_id=friend_id, 
-                         active_friend=active_friend)
+                         active_friend=active_friend,
+                         active_page='messages')
 
 @bp.route('/api/messages/<int:friend_id>')
 def get_messages(friend_id):
@@ -82,24 +82,24 @@ def get_messages(friend_id):
     # Форматируем сообщения для JSON
     formatted_messages = []
     for msg in messages:
-        formatted_messages.append({
+        message_data = {
             'id': msg['id'],
             'sender_id': msg['sender_id'],
             'receiver_id': msg['receiver_id'],
             'content': msg['content'],
             'file_path': msg['file_path'],
-            'file_name': os.path.basename(msg['file_path']) if msg['file_path'] else None,
             'timestamp': msg['timestamp'],
             'username': msg['username'],
             'avatar': msg['avatar']
-        })
+        }
+        
+        # Добавляем имя файла, если есть путь к файлу
+        if msg['file_path']:
+            message_data['file_name'] = os.path.basename(msg['file_path'])
+        
+        formatted_messages.append(message_data)
     
     return jsonify(messages=formatted_messages)
-
-def allowed_file(filename):
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'mp3', 'mp4', 'txt'}
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @bp.route('/upload_message_file', methods=['POST'])
 def upload_message_file():
@@ -117,7 +117,7 @@ def upload_message_file():
     if not receiver_id:
         return jsonify({'error': 'No receiver specified'}), 400
         
-    if not allowed_file(file.filename):
+    if not allowed_file(file.filename, current_app.config['ALLOWED_EXTENSIONS']):
         return jsonify({'error': 'File type not allowed'}), 400
         
     # Генерация уникального имени файла
@@ -138,13 +138,14 @@ def upload_message_file():
             (session['user_id'], receiver_id, '', unique_filename)
         )
         conn.commit()
+        message_id = c.lastrowid
         conn.close()
         
         return jsonify({
             'success': True,
             'file_path': unique_filename,
             'original_name': filename,
-            'message_id': c.lastrowid
+            'message_id': message_id
         })
     except Exception as e:
         current_app.logger.error(f"File upload error: {str(e)}")

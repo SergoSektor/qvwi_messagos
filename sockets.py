@@ -5,6 +5,8 @@ import time
 import os
 from config import Config
 from werkzeug.utils import secure_filename
+from flask_socketio import emit, join_room, leave_room
+
 
 # Глобальный словарь для отслеживания набора текста
 typing_status = {}
@@ -56,6 +58,7 @@ def register_socket_handlers(socketio):
 
         # Обработка прикрепленного файла
         file_path = None
+        file_name = None
         if file_data:
             try:
                 # Проверка размера файла
@@ -66,6 +69,7 @@ def register_socket_handlers(socketio):
                 # Сохранение файла
                 filename = secure_filename(f"{int(time.time())}_{file_data['filename']}")
                 file_path = os.path.join(Config.MESSAGE_FILES_FOLDER, filename)
+                file_name = file_data['filename']
                 
                 os.makedirs(Config.MESSAGE_FILES_FOLDER, exist_ok=True)
                 with open(file_path, 'wb') as f:
@@ -96,7 +100,7 @@ def register_socket_handlers(socketio):
             'receiver_id': receiver_id,
             'content': content,
             'file_path': file_path,
-            'file_name': file_data['filename'] if file_data else None,
+            'file_name': file_name,
             'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
             'username': sender_data['username'],
             'avatar': sender_data['avatar']
@@ -125,3 +129,79 @@ def register_socket_handlers(socketio):
         # Отправляем уведомление
         room_id = f"{min(sender_id, receiver_id)}_{max(sender_id, receiver_id)}"
         emit('user_typing', {'sender_id': sender_id}, room=room_id)
+    
+    # WebRTC обработчики для звонков
+    @socketio.on('webrtc_offer')
+    def handle_webrtc_offer(data):
+        """Обработчик предложения WebRTC"""
+        if 'user_id' not in session:
+            return
+        
+        sender_id = session['user_id']
+        receiver_id = data.get('receiver_id')
+        offer = data.get('offer')
+        
+        if not all([sender_id, receiver_id, offer]):
+            return
+        
+        # Пересылаем предложение получателю
+        emit('webrtc_offer', {
+            'offer': offer,
+            'sender_id': sender_id
+        }, room=str(receiver_id))
+    
+    @socketio.on('webrtc_answer')
+    def handle_webrtc_answer(data):
+        """Обработчик ответа WebRTC"""
+        if 'user_id' not in session:
+            return
+        
+        sender_id = session['user_id']
+        receiver_id = data.get('receiver_id')
+        answer = data.get('answer')
+        
+        if not all([sender_id, receiver_id, answer]):
+            return
+        
+        # Пересылаем ответ инициатору звонка
+        emit('webrtc_answer', {
+            'answer': answer,
+            'sender_id': sender_id
+        }, room=str(receiver_id))
+    
+    @socketio.on('webrtc_ice_candidate')
+    def handle_webrtc_ice_candidate(data):
+        """Обработчик ICE кандидата WebRTC"""
+        if 'user_id' not in session:
+            return
+        
+        sender_id = session['user_id']
+        receiver_id = data.get('receiver_id')
+        candidate = data.get('candidate')
+        
+        if not all([sender_id, receiver_id, candidate]):
+            return
+        
+        # Пересылаем ICE кандидат
+        emit('webrtc_ice_candidate', {
+            'candidate': candidate,
+            'sender_id': sender_id
+        }, room=str(receiver_id))
+    
+    @socketio.on('webrtc_end_call')
+    def handle_webrtc_end_call(data):
+        """Обработчик завершения звонка"""
+        if 'user_id' not in session:
+            return
+        
+        sender_id = session['user_id']
+        receiver_id = data.get('receiver_id')
+        
+        if not all([sender_id, receiver_id]):
+            return
+        
+        # Уведомляем получателя о завершении звонка
+        emit('webrtc_end_call', {
+            'sender_id': sender_id
+        }, room=str(receiver_id))
+    
