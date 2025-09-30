@@ -109,6 +109,7 @@ def register_socket_handlers(socketio):
                 (sender_id, receiver_id, content, file_path)
             )
             conn.commit()
+            message_id = c.lastrowid
 
             # Получаем данные отправителя
             c.execute("SELECT username, avatar FROM users WHERE id = ?", (sender_id,))
@@ -118,6 +119,7 @@ def register_socket_handlers(socketio):
 
         # Формируем данные сообщения
         message_data = {
+            'id': message_id,
             'sender_id': sender_id,
             'receiver_id': receiver_id,
             'content': content,
@@ -131,6 +133,13 @@ def register_socket_handlers(socketio):
         # Отправка сообщения в комнату чата
         room_id = f"{min(sender_id, receiver_id)}_{max(sender_id, receiver_id)}"
         emit('receive_message', message_data, room=room_id)
+        # Глобальное уведомление о новом сообщении (для всех разделов, подписанных по user room)
+        emit('global_notification', {
+            'type': 'message',
+            'from_user_id': sender_id,
+            'to_user_id': receiver_id,
+            'preview': content or (file_name or 'Файл')
+        }, room=str(receiver_id))
         logger.info(f"Message sent from {sender_id} to {receiver_id}")
 
     @socketio.on('typing')
@@ -413,6 +422,22 @@ def register_socket_handlers(socketio):
                 if call_id in pending_calls:
                     del pending_calls[call_id]
                     logger.info(f"Pending call {call_id} removed")
+
+    # Событие mute/unmute микрофона
+    @socketio.on('webrtc_toggle_mute')
+    def handle_webrtc_toggle_mute(data):
+        """Ретрансляция статуса mute/unmute собеседнику"""
+        if 'user_id' not in session:
+            return
+        sender_id = session['user_id']
+        receiver_id = data.get('receiver_id')
+        muted = data.get('muted', False)
+        if not receiver_id:
+            return
+        emit('webrtc_peer_mute', {
+            'sender_id': sender_id,
+            'muted': bool(muted)
+        }, room=str(receiver_id))
 
     # Добавляем новый обработчик для диагностики медиаустройств
     @socketio.on('media_devices_status')

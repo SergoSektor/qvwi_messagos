@@ -117,8 +117,7 @@ def upload_message_file():
     if not receiver_id:
         return jsonify({'error': 'No receiver specified'}), 400
         
-    if not allowed_file(file.filename, current_app.config['ALLOWED_EXTENSIONS']):
-        return jsonify({'error': 'File type not allowed'}), 400
+    # Разрешаем любые типы файлов (ограничение только по размеру через MAX_CONTENT_LENGTH)
         
     # Генерация уникального имени файла
     filename = secure_filename(file.filename)
@@ -139,7 +138,30 @@ def upload_message_file():
         )
         conn.commit()
         message_id = c.lastrowid
+        # Получим данные отправителя (для клиента может пригодиться)
+        c.execute("SELECT username, avatar FROM users WHERE id = ?", (session['user_id'],))
+        sender = c.fetchone()
         conn.close()
+
+        # Отправляем событие через сокеты обоим участникам чата
+        try:
+            from app import socketio
+            sender_id = session['user_id']
+            room_id = f"{min(int(sender_id), int(receiver_id))}_{max(int(sender_id), int(receiver_id))}"
+            socketio.emit('receive_message', {
+                'id': message_id,
+                'sender_id': sender_id,
+                'receiver_id': int(receiver_id),
+                'content': '',
+                'file_path': unique_filename,
+                'file_name': filename,
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'username': sender['username'] if sender else '',
+                'avatar': sender['avatar'] if sender else ''
+            }, room=room_id)
+        except Exception:
+            # Если сокеты недоступны, просто продолжим — клиент подтянет по API
+            pass
         
         return jsonify({
             'success': True,

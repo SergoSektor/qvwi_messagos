@@ -580,6 +580,10 @@
         <div class="content">
             <div class="friends-list">
                 <h2>Диалоги</h2>
+                <div style="display:flex; gap:8px; margin-bottom:12px;">
+                    <input id="start-chat-id" type="number" placeholder="ID пользователя" style="flex:1; padding:8px 10px; border:1px solid var(--border-color); border-radius:8px; background: var(--info-bg); color: var(--text-primary);">
+                    <button id="start-chat-btn" title="Написать" style="width:42px;height:38px;border-radius:8px;border:none;background:var(--active-color);color:#fff;cursor:pointer"><i class="fas fa-arrow-right"></i></button>
+                </div>
                 {% for friend in friends %}
                 <div class="friend-item {% if friend_id == friend[0] %}active{% endif %}" onclick="location.href='{{ url_for('messages.messages', friend_id=friend[0]) }}'">
                     <img src="{% if friend[2] %}{{ url_for('static', filename='uploads/' + friend[2]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" 
@@ -615,6 +619,8 @@
                     <div class="chat-actions">
                         <button id="audio-call-btn" title="Аудиозвонок"><i class="fas fa-phone-alt"></i></button>
                         <button id="video-call-btn" title="Видеозвонок"><i class="fas fa-video"></i></button>
+                        <button id="encrypt-btn" title="Шифрование" style="display:inline-flex;"><i class="fas fa-lock-open"></i></button>
+                        <button id="mute-btn" title="Отключить микрофон" style="display:none;"><i class="fas fa-microphone"></i></button>
                         <button title="Дополнительно"><i class="fas fa-ellipsis-v"></i></button>
                     </div>
                 </div>
@@ -633,9 +639,12 @@
                 </div>
                 
                 <div class="chat-input">
+                    <button id="select-mode-btn" title="Выбрать сообщения"><i class="fas fa-check-square"></i></button>
                     <button id="attach-button" title="Прикрепить файл"><i class="fas fa-paperclip"></i></button>
                     <input type="file" id="file-input" style="display: none;">
                     <textarea id="message-input" placeholder="Напишите сообщение..."></textarea>
+                    <button id="copy-selected-btn" title="Копировать выбранные" style="display:none;"><i class="fas fa-copy"></i></button>
+                    <button id="share-selected-btn" title="Поделиться выбранными" style="display:none;"><i class="fas fa-share-alt"></i></button>
                     <button id="send-button" title="Отправить"><i class="fas fa-paper-plane"></i></button>
                 </div>
                 {% else %}
@@ -668,9 +677,20 @@
                 <button id="call-end" class="call-button call-end" style="display: none;">
                     <i class="fas fa-phone-slash"></i>
                 </button>
+                <button id="call-retry" class="call-button" style="display: none; background:#f1c40f; color:#222;">
+                    <i class="fas fa-redo"></i>
+                </button>
+            </div>
+            <div id="device-row" style="margin-top:10px; display:flex; gap:10px; align-items:center; justify-content:center;">
+                <label for="mic-select" style="color:var(--text-secondary); font-size:0.9rem;">Микрофон:</label>
+                <select id="mic-select" style="padding:6px 10px; border:1px solid var(--border-color); border-radius:8px; background: var(--info-bg); color: var(--text-primary);"></select>
             </div>
             <audio id="remote-audio" autoplay></audio>
             <audio id="local-audio" muted></audio>
+            <div id="peer-muted" style="display:none; margin-top:10px; color: var(--text-secondary);">
+                Собеседник выключил микрофон
+            </div>
+            <div id="call-error" style="display:none; margin-top:10px; color:#e74c3c; font-size:0.95rem;"></div>
         </div>
     </div>
 
@@ -713,6 +733,7 @@
             const typingIndicator = document.getElementById('typing-indicator');
             const fileInput = document.getElementById('file-input');
             const attachButton = document.getElementById('attach-button');
+            const startChatBtn = document.getElementById('start-chat-btn');
             
             // Элементы звонка
             const callModal = document.getElementById('call-modal');
@@ -725,6 +746,15 @@
             const videoCallBtn = document.getElementById('video-call-btn');
             const remoteAudio = document.getElementById('remote-audio');
             const localAudio = document.getElementById('local-audio');
+            const muteBtn = document.getElementById('mute-btn');
+            const peerMutedBanner = document.getElementById('peer-muted');
+            const micSelect = document.getElementById('mic-select');
+            const callError = document.getElementById('call-error');
+            const callRetry = document.getElementById('call-retry');
+            const encryptBtn = document.getElementById('encrypt-btn');
+            const selectModeBtn = document.getElementById('select-mode-btn');
+            const copySelectedBtn = document.getElementById('copy-selected-btn');
+            const shareSelectedBtn = document.getElementById('share-selected-btn');
             
             // Переменные для WebRTC
             let localStream = null;
@@ -732,41 +762,259 @@
             let isCaller = false;
             let callStartTime = null;
             let callTimerInterval = null;
+            let isMuted = false;
+            let selectionMode = false;
+            let selectedMessageIds = new Set();
+            let encryptEnabled = false;
+            let cryptoKey = null;
+            window.__receivedIds = new Set();
+            let preferredMicId = localStorage.getItem('preferredMicId') || null;
+            // Perfect negotiation flags
+            const polite = userId > friendId; // детерминированная вежливость
+            let makingOffer = false;
+            let ignoreOffer = false;
+            let isSettingRemoteAnswerPending = false;
+            // Состояние сигнализации/комнаты
+            let socketReady = false;
+            let roomJoined = false;
+            let callInProgress = false;
+            let hasConnected = false; // Соединение установлено хотя бы раз
+
+            async function populateMicDevices() {
+                try {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const mics = devices.filter(d => d.kind === 'audioinput');
+                    if (!micSelect) return;
+                    micSelect.innerHTML = '';
+                    mics.forEach(d => {
+                        const opt = document.createElement('option');
+                        opt.value = d.deviceId;
+                        opt.textContent = d.label || `Микрофон ${micSelect.length + 1}`;
+                        micSelect.appendChild(opt);
+                    });
+                    if (preferredMicId && mics.some(d => d.deviceId === preferredMicId)) {
+                        micSelect.value = preferredMicId;
+                    } else if (mics[0]) {
+                        micSelect.value = mics[0].deviceId;
+                        preferredMicId = mics[0].deviceId;
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            }
+
+            function showCallError(msg) {
+                if (!callError) return;
+                callError.style.display = 'block';
+                callError.textContent = msg;
+            }
+            function clearCallError() {
+                if (!callError) return;
+                callError.style.display = 'none';
+                callError.textContent = '';
+            }
+
+            async function getLocalStream(withVideo) {
+                clearCallError();
+                // HTTPS проверка
+                if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+                    showCallError('Для доступа к микрофону требуется HTTPS. Откройте страницу по https://');
+                }
+                const baseAudio = preferredMicId ? { deviceId: { exact: preferredMicId } } : true;
+                const candidates = [
+                    { audio: baseAudio, video: withVideo ? { facingMode: 'user' } : false },
+                    { audio: true, video: false }
+                ];
+                // Добавим альтернативные микрофоны, если известны
+                try {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const mics = devices.filter(d => d.kind === 'audioinput').map(d => d.deviceId);
+                    mics.forEach(id => {
+                        if (!preferredMicId || id !== preferredMicId) {
+                            candidates.push({ audio: { deviceId: { exact: id } }, video: false });
+                        }
+                    });
+                } catch (e) {}
+
+                for (const constraints of candidates) {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                        return stream;
+                    } catch (e) {
+                        // Диагностика
+                        if (e.name === 'NotAllowedError') {
+                            showCallError('Доступ к микрофону запрещён. Разрешите доступ в настройках сайта и попробуйте снова.');
+                            socket.emit('call_error', { receiver_id: friendId, error: 'media permission denied', error_type: 'media_permission' });
+                            break;
+                        }
+                        if (e.name === 'OverconstrainedError' || e.name === 'NotReadableError') {
+                            continue;
+                        }
+                        if (e.name === 'SecurityError') {
+                            showCallError('Браузер блокирует доступ. Используйте https:// или localhost.');
+                            break;
+                        }
+                    }
+                }
+                throw new Error('Не удалось получить доступ к микрофону');
+            }
+
+            micSelect && micSelect.addEventListener('change', async () => {
+                preferredMicId = micSelect.value || null;
+                localStorage.setItem('preferredMicId', preferredMicId || '');
+                // Переключение дорожки на лету
+                try {
+                    const newStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: preferredMicId } }, video: false });
+                    if (localStream) {
+                        const newAudioTrack = newStream.getAudioTracks()[0];
+                        const sender = peerConnection && peerConnection.getSenders().find(s => s.track && s.track.kind === 'audio');
+                        if (sender && newAudioTrack) {
+                            await sender.replaceTrack(newAudioTrack);
+                            // остановим старые аудио-треки
+                            localStream.getAudioTracks().forEach(t => t.stop());
+                            const vTracks = localStream.getVideoTracks();
+                            localStream = new MediaStream([newAudioTrack, ...vTracks]);
+                        }
+                    }
+                } catch (e) {
+                    showCallError('Не удалось переключить микрофон.');
+                }
+            });
+            
+            // Шифрование AES-GCM (по паролю в localStorage per friendId)
+            async function getCryptoKey() {
+                if (cryptoKey) return cryptoKey;
+                const pass = localStorage.getItem(`enc_pass_${friendId}`) || '';
+                if (!pass) return null;
+                const enc = new TextEncoder();
+                const salt = enc.encode(`salt_${friendId}`);
+                const baseKey = await window.crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+                cryptoKey = await window.crypto.subtle.deriveKey(
+                    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+                    baseKey,
+                    { name: 'AES-GCM', length: 256 },
+                    false,
+                    ['encrypt','decrypt']
+                );
+                return cryptoKey;
+            }
+            async function encryptText(plain) {
+                const key = await getCryptoKey();
+                if (!key) return null;
+                const iv = window.crypto.getRandomValues(new Uint8Array(12));
+                const enc = new TextEncoder();
+                const cipher = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plain));
+                const b64 = btoa(String.fromCharCode(...new Uint8Array(cipher)));
+                const ivb64 = btoa(String.fromCharCode(...iv));
+                return `enc:${ivb64}:${b64}`;
+            }
+            async function tryDecryptText(encStr) {
+                try {
+                    if (!encStr || !encStr.startsWith('enc:')) return null;
+                    const key = await getCryptoKey();
+                    if (!key) return null;
+                    const parts = encStr.split(':');
+                    const iv = Uint8Array.from(atob(parts[1]), c => c.charCodeAt(0));
+                    const data = Uint8Array.from(atob(parts[2]), c => c.charCodeAt(0));
+                    const plainBuf = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+                    return new TextDecoder().decode(new Uint8Array(plainBuf));
+                } catch(e) { return null; }
+            }
+
+            if (encryptBtn) {
+                encryptBtn.addEventListener('click', async () => {
+                    if (!friendId) return;
+                    if (!encryptEnabled) {
+                        const pass = prompt('Введите пароль шифрования для этого диалога');
+                        if (!pass) return;
+                        localStorage.setItem(`enc_pass_${friendId}`, pass);
+                        cryptoKey = null;
+                        await getCryptoKey();
+                        encryptEnabled = true;
+                        encryptBtn.innerHTML = '<i class="fas fa-lock"></i>';
+                    } else {
+                        encryptEnabled = false;
+                        encryptBtn.innerHTML = '<i class="fas fa-lock-open"></i>';
+                    }
+                });
+            }
             
             // Конфигурация STUN/TURN серверов
             const pcConfig = {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:stun1.l.google.com:19302' }
+                    // TURN будет добавлен сервером, если задан
                 ]
             };
+            if ('{{ TURN_URL }}') {
+                try {
+                    pcConfig.iceServers.push({ urls: '{{ TURN_URL }}', username: '{{ TURN_USERNAME }}', credential: '{{ TURN_PASSWORD }}' });
+                } catch(e) {}
+            }
             
-            // Подключение к WebSocket
+            // Подключение к комнате
             socket.on('connect', function() {
                 if (friendId) {
                     socket.emit('join_chat', { friend_id: friendId });
                 }
+                socketReady = true;
             });
+            socket.on('join_response', (data) => { roomJoined = true; });
 
             // Отправка сообщения
-            function sendMessage() {
+            // (удален дублирующийся блок шифрования)
+
+            // Навигация: начать чат по ID
+            startChatBtn?.addEventListener('click', () => {
+                const id = parseInt(startChatInput.value, 10);
+                if (id && id !== userId) {
+                    window.location.href = `/messages/${id}`;
+                }
+            });
+
+            async function sendMessage() {
                 const content = messageInput.value.trim();
                 if (content && friendId) {
-                    socket.emit('send_message', {
-                        receiver_id: friendId,
-                        content: content
-                    });
+                    let payloadContent = content;
+                    if (encryptEnabled) {
+                        const enc = await encryptText(content);
+                        if (enc) payloadContent = enc;
+                    }
+                    socket.emit('send_message', { receiver_id: friendId, content: payloadContent });
                     messageInput.value = '';
                     scrollToBottom();
                 }
             }
 
-            sendButton.addEventListener('click', sendMessage);
+            sendButton.addEventListener('click', async () => {
+                const content = messageInput.value.trim();
+                if (content && friendId) {
+                    let payload = content;
+                    if (encryptEnabled) {
+                        const enc = await encryptText(content);
+                        if (enc) payload = enc;
+                    }
+                    socket.emit('send_message', { receiver_id: friendId, content: payload });
+                    messageInput.value = '';
+                    scrollToBottom();
+                }
+            });
             
-            messageInput.addEventListener('keypress', function(e) {
+            messageInput.addEventListener('keypress', async function(e) {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    sendMessage();
+                    const content = messageInput.value.trim();
+                    if (content && friendId) {
+                        let payload = content;
+                        if (encryptEnabled) {
+                            const enc = await encryptText(content);
+                            if (enc) payload = enc;
+                        }
+                        socket.emit('send_message', { receiver_id: friendId, content: payload });
+                        messageInput.value = '';
+                        scrollToBottom();
+                    }
                 }
             });
 
@@ -778,7 +1026,9 @@
             });
 
             // Получение новых сообщений
-            socket.on('receive_message', function(data) {
+            socket.on('receive_message', async function(data) {
+                if (data.id && window.__receivedIds && window.__receivedIds.has(data.id)) return;
+                if (data.id) window.__receivedIds.add(data.id);
                 const isSent = data.sender_id == userId;
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
@@ -797,8 +1047,11 @@
                         ${data.content ? `<div class="message-text">${data.content}</div>` : ''}
                     `;
                 } else {
-                    // Текстовое сообщение
-                    contentHtml = `<div class="message-text">${data.content}</div>`;
+                    // Текстовое сообщение (возможная расшифровка)
+                    let textToShow = data.content || '';
+                    const dec = await tryDecryptText(textToShow);
+                    if (dec !== null) textToShow = dec;
+                    contentHtml = `<div class="message-text">${textToShow}</div>`;
                 }
                 
                 messageDiv.innerHTML = `
@@ -808,6 +1061,7 @@
                         ${isSent ? '<i class="fas fa-check-double" style="margin-left: 5px;"></i>' : ''}
                     </div>
                 `;
+                if (data.id) messageDiv.dataset.msgId = data.id;
                 
                 chatMessages.appendChild(messageDiv);
                 scrollToBottom();
@@ -901,6 +1155,11 @@
                         
                         // Прокручиваем к новым сообщениям
                         setTimeout(scrollToBottom, 500);
+                        // Мгновенно показать «заглушку» файла в ленте без перезагрузки
+                        const stub = document.createElement('div');
+                        stub.className = 'message sent';
+                        stub.innerHTML = `<div class="message-file"><i class=\"fas fa-paperclip\"></i> ${file.name}</div><div class=\"message-time\">${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} <i class=\"fas fa-check-double\" style=\"margin-left:5px;\"></i></div>`;
+                        chatMessages && chatMessages.appendChild(stub);
                     } else {
                         alert('Ошибка загрузки файла: ' + (data.error || 'Неизвестная ошибка'));
                     }
@@ -931,125 +1190,134 @@
             // ========== ФУНКЦИОНАЛ ЗВОНКОВ ==========
             
             // Инициализация аудиозвонка
-            audioCallBtn.addEventListener('click', () => {
-                startCall(false);
-            });
-            
-            // Инициализация видеозвонка
-            videoCallBtn.addEventListener('click', () => {
-                startCall(true);
-            });
-            
-            // Начать звонок
+            audioCallBtn && audioCallBtn.addEventListener('click', () => startCall(false));
+            videoCallBtn && videoCallBtn.addEventListener('click', () => startCall(true));
+
             async function startCall(withVideo) {
+                if (callInProgress) return;
+                callInProgress = true;
+                // Дождёмся подключения сокета и входа в комнату
+                let guard = 0;
+                while (!(socketReady && roomJoined) && guard < 50) { await new Promise(r=>setTimeout(r,100)); guard++; }
                 try {
                     isCaller = true;
-                    callStatus.textContent = 'Звонок...';
-                    callModal.style.display = 'flex';
-                    callAccept.style.display = 'none';
-                    callDecline.style.display = 'block';
-                    callEnd.style.display = 'none';
-                    
-                    // Получаем доступ к медиаустройствам
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        audio: true,
-                        video: withVideo
-                    });
-                    
-                    // Создаем PeerConnection
+                    if (callStatus && callModal) {
+                        callStatus.textContent = 'Звонок...';
+                        callModal.style.display = 'flex';
+                        if (callAccept) callAccept.style.display = 'none';
+                        if (callDecline) callDecline.style.display = 'block';
+                        if (callEnd) callEnd.style.display = 'none';
+                        if (muteBtn) muteBtn.style.display = 'inline-flex';
+                        if (callRetry) callRetry.style.display = 'none';
+                        if (audioCallBtn) audioCallBtn.disabled = true;
+                        if (videoCallBtn) videoCallBtn.disabled = true;
+                    }
+                    await populateMicDevices();
+                    localStream = await getLocalStream(withVideo);
                     createPeerConnection();
-                    
-                    // Добавляем локальный поток
-                    localStream.getTracks().forEach(track => {
-                        peerConnection.addTrack(track, localStream);
-                    });
-                    
-                    // Создаем предложение
-                    const offer = await peerConnection.createOffer();
-                    await peerConnection.setLocalDescription(offer);
-                    
-                    // Отправляем предложение через сокет
-                    socket.emit('webrtc_offer', {
-                        offer: offer,
-                        receiver_id: friendId
-                    });
-                    
+                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                    // Дальше предложения пойдут через onnegotiationneeded
                 } catch (error) {
                     console.error('Ошибка при запуске звонка:', error);
-                    alert('Не удалось начать звонок. Проверьте разрешения для микрофона и камеры.');
-                    endCall();
+                    showCallError('Не удалось начать звонок. Проверьте доступ к микрофону/камере и попробуйте ещё раз.');
+                    if (callRetry) callRetry.style.display = 'inline-flex';
+                }
+                finally {
+                    callInProgress = false;
+                    if (audioCallBtn) audioCallBtn.disabled = false;
+                    if (videoCallBtn) videoCallBtn.disabled = false;
                 }
             }
             
             // Создание PeerConnection
             function createPeerConnection() {
                 peerConnection = new RTCPeerConnection(pcConfig);
-                
-                // Обработчик получения удаленного потока
                 peerConnection.ontrack = (event) => {
                     const remoteStream = event.streams[0];
-                    remoteAudio.srcObject = remoteStream;
+                    if (remoteAudio) remoteAudio.srcObject = remoteStream;
                 };
-                
-                // Обработчик ICE кандидатов
+                if (localStream) {
+                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                }
                 peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        socket.emit('webrtc_ice_candidate', {
-                            candidate: event.candidate,
-                            receiver_id: friendId
-                        });
+                    if (event.candidate) socket.emit('webrtc_ice_candidate', { candidate: event.candidate, receiver_id: friendId });
+                };
+                peerConnection.onconnectionstatechange = () => {
+                    const st = peerConnection.connectionState;
+                    if (st === 'connected') { if (callStatus) callStatus.textContent = 'Разговор активен'; startCallTimer(); hasConnected = true; }
+                    if (st === 'failed') {
+                        if (!hasConnected) {
+                            // Не закрываем модалку до установления связи — дадим ретраить
+                            showCallError('Не удалось установить соединение. Попробуйте ещё раз.');
+                            if (callRetry) callRetry.style.display = 'inline-flex';
+                        } else {
+                            endCall();
+                        }
                     }
                 };
-                
-                // Обработчик изменения состояния соединения
-                peerConnection.onconnectionstatechange = () => {
-                    switch(peerConnection.connectionState) {
-                        case 'connected':
-                            callStatus.textContent = 'Разговор активен';
-                            startCallTimer();
-                            break;
-                        case 'disconnected':
-                        case 'failed':
-                            endCall();
-                            break;
+                peerConnection.oniceconnectionstatechange = () => {
+                    const ist = peerConnection.iceConnectionState;
+                    if (ist === 'failed') {
+                        try { peerConnection.restartIce(); } catch(e) {}
+                        if (!hasConnected) {
+                            showCallError('Проблема с сетевым соединением. Ждём восстановление или попробуйте снова.');
+                            if (callRetry) callRetry.style.display = 'inline-flex';
+                        }
+                    }
+                };
+                // Автопереговоры
+                peerConnection.onnegotiationneeded = async () => {
+                    try {
+                        makingOffer = true;
+                        const offer = await peerConnection.createOffer();
+                        await peerConnection.setLocalDescription(offer);
+                        socket.emit('webrtc_offer', { offer: peerConnection.localDescription, receiver_id: friendId });
+                    } catch (e) {
+                        console.error('negotiation error', e);
+                    } finally {
+                        makingOffer = false;
                     }
                 };
             }
             
             // Принять звонок
-            callAccept.addEventListener('click', async () => {
+            callAccept && callAccept.addEventListener('click', async () => {
                 try {
-                    callStatus.textContent = 'Подключение...';
-                    callAccept.style.display = 'none';
-                    callDecline.style.display = 'none';
-                    callEnd.style.display = 'block';
-                    
-                    // Получаем доступ к медиаустройствам
-                    localStream = await navigator.mediaDevices.getUserMedia({
-                        audio: true,
-                        video: false
-                    });
-                    
-                    // Создаем ответ
-                    const answer = await peerConnection.createAnswer();
-                    await peerConnection.setLocalDescription(answer);
-                    
-                    // Отправляем ответ
-                    socket.emit('webrtc_answer', {
-                        answer: answer,
-                        receiver_id: friendId
-                    });
-                    
+                    if (callStatus) callStatus.textContent = 'Подключение...';
+                    if (callAccept) callAccept.style.display = 'none';
+                    if (callDecline) callDecline.style.display = 'none';
+                    if (callEnd) callEnd.style.display = 'block';
+                    if (muteBtn) muteBtn.style.display = 'inline-flex';
+                    await populateMicDevices();
+                    localStream = await getLocalStream(false);
+                    if (peerConnection) localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                    // Ответ будет создан в обработчике offer (perfect negotiation)
                 } catch (error) {
                     console.error('Ошибка при принятии звонка:', error);
-                    alert('Не удалось принять звонок.');
+                    showCallError('Не удалось принять звонок.');
                     endCall();
                 }
             });
             
             // Отклонить/закончить звонок
-            callDecline.addEventListener('click', endCall);
-            callEnd.addEventListener('click', endCall);
+            callDecline && callDecline.addEventListener('click', endCall);
+            callEnd && callEnd.addEventListener('click', endCall);
+            callRetry && callRetry.addEventListener('click', async () => {
+                clearCallError();
+                if (callRetry) callRetry.style.display = 'none';
+                try {
+                    await populateMicDevices();
+                    localStream = await getLocalStream(false);
+                    if (!peerConnection) createPeerConnection();
+                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                    const offer = await peerConnection.createOffer();
+                    await peerConnection.setLocalDescription(offer);
+                    socket.emit('webrtc_offer', { offer: peerConnection.localDescription, receiver_id: friendId });
+                } catch (e) {
+                    showCallError('Не удалось получить доступ к микрофону. Исправьте разрешения и повторите.');
+                    if (callRetry) callRetry.style.display = 'inline-flex';
+                }
+            });
             
             // Завершение звонка
             function endCall() {
@@ -1077,6 +1345,10 @@
                 
                 // Скрываем модальное окно
                 callModal.style.display = 'none';
+                peerMutedBanner.style.display = 'none';
+                isMuted = false;
+                muteBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+                muteBtn.style.display = 'none';
                 
                 // Отправляем событие завершения звонка
                 if (isCaller) {
@@ -1106,25 +1378,49 @@
             // Получение предложения о звонке
             socket.on('webrtc_offer', async (data) => {
                 if (data.sender_id === friendId) {
-                    isCaller = false;
-                    callStatus.textContent = 'Входящий звонок';
-                    callModal.style.display = 'flex';
-                    callAccept.style.display = 'block';
-                    callDecline.style.display = 'block';
-                    callEnd.style.display = 'none';
-                    
-                    // Создаем PeerConnection
-                    createPeerConnection();
-                    
-                    // Устанавливаем удаленное предложение
-                    await peerConnection.setRemoteDescription(data.offer);
+                    const offerCollision = (makingOffer || peerConnection.signalingState !== 'stable');
+                    ignoreOffer = !polite && offerCollision;
+                    if (ignoreOffer) return;
+                    if (!peerConnection) createPeerConnection();
+                    try {
+                        isSettingRemoteAnswerPending = (data.offer.type === 'answer');
+                        await peerConnection.setRemoteDescription(data.offer);
+                        if (data.offer.type === 'offer') {
+                            if (!localStream) {
+                                await populateMicDevices();
+                                localStream = await getLocalStream(false);
+                                localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
+                            }
+                            const answer = await peerConnection.createAnswer();
+                            await peerConnection.setLocalDescription(answer);
+                            socket.emit('webrtc_answer', { answer: peerConnection.localDescription, receiver_id: friendId });
+                        }
+                    } catch (e) {
+                        console.error('handle offer error', e);
+                    } finally {
+                        isSettingRemoteAnswerPending = false;
+                    }
+                    // Покажем модалку входящего при необходимости
+                    if (callStatus && callModal && data.offer.type === 'offer') {
+                        isCaller = false;
+                        callStatus.textContent = 'Входящий звонок';
+                        callModal.style.display = 'flex';
+                        if (callAccept) callAccept.style.display = 'block';
+                        if (callDecline) callDecline.style.display = 'block';
+                        if (callEnd) callEnd.style.display = 'none';
+                        if (muteBtn) muteBtn.style.display = 'none';
+                    }
                 }
             });
             
             // Получение ответа на звонок
             socket.on('webrtc_answer', async (data) => {
                 if (data.sender_id === friendId) {
-                    await peerConnection.setRemoteDescription(data.answer);
+                    try {
+                        await peerConnection.setRemoteDescription(data.answer);
+                    } catch (e) {
+                        console.error('setRemoteDescription(answer) error', e);
+                    }
                 }
             });
             
@@ -1142,8 +1438,41 @@
             // Получение сигнала о завершении звонка
             socket.on('webrtc_end_call', (data) => {
                 if (data.sender_id === friendId) {
-                    endCall();
+                    if (!hasConnected) {
+                        // До установления звонка не закрываем окно — даём шанс перезвонить
+                        showCallError(data.reason || 'Собеседник недоступен.');
+                        if (callRetry) callRetry.style.display = 'inline-flex';
+                    } else {
+                        endCall();
+                    }
                 }
+            });
+
+            // Кнопка mute/unmute
+            muteBtn.addEventListener('click', () => {
+                if (!localStream) return;
+                isMuted = !isMuted;
+                localStream.getAudioTracks().forEach(track => track.enabled = !isMuted);
+                muteBtn.innerHTML = isMuted ? '<i class="fas fa-microphone-slash"></i>' : '<i class="fas fa-microphone"></i>';
+                socket.emit('webrtc_toggle_mute', { receiver_id: friendId, muted: isMuted });
+            });
+
+            // Прием статуса mute от собеседника
+            socket.on('webrtc_peer_mute', (data) => {
+                if (data.sender_id === friendId) {
+                    peerMutedBanner.style.display = data.muted ? 'block' : 'none';
+                }
+            });
+
+            // Мелкие улучшения мобильной адаптации: автофокус/клавиатура, автоскрытие сайдбара (минимально)
+            if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
+                document.querySelector('.sidebar').setAttribute('style', 'display:block;');
+            }
+
+            // Глобальные уведомления (можно продублировать подключение в других разделах)
+            socket.on('global_notification', (n) => {
+                // Здесь можно отобразить тост/бейджик
+                console.log('Уведомление:', n);
             });
         });
     </script>

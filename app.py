@@ -6,6 +6,7 @@ from config import Config
 from models import init_db
 from datetime import datetime 
 import os
+import socket
 import ssl
 from routes.auth import bp as auth_bp
 from routes.feed import bp as feed_bp
@@ -70,14 +71,23 @@ def datetimeformat(value, format='%d.%m.%Y %H:%M'):
 
 app.jinja_env.filters['datetimeformat'] = datetimeformat  # Регистрируем фильтр
 
+# Пробрасываем TURN-конфиг в шаблоны
+app.jinja_env.globals.update(
+    TURN_URL=Config.TURN_URL,
+    TURN_USERNAME=Config.TURN_USERNAME,
+    TURN_PASSWORD=Config.TURN_PASSWORD
+)
+
 def generate_self_signed_cert():
     """Генерация самоподписанного SSL сертификата"""
     try:
         from OpenSSL import crypto
         from socket import gethostname
         
+        # При установке переменной окружения SSL_REGEN=1 принудительно пересоздаем сертификаты
+        force_regen = os.getenv("SSL_REGEN", "0") == "1"
         # Проверяем, существуют ли уже сертификаты
-        if os.path.exists("ssl/cert.pem") and os.path.exists("ssl/key.pem"):
+        if (os.path.exists("ssl/cert.pem") and os.path.exists("ssl/key.pem")) and not force_regen:
             print("SSL сертификаты уже существуют")
             return True
             
@@ -98,6 +108,38 @@ def generate_self_signed_cert():
         cert.gmtime_adj_notAfter(365*24*60*60)  # 1 год
         cert.set_issuer(cert.get_subject())
         cert.set_pubkey(key)
+
+        # Добавляем расширения и SubjectAltName (SAN), иначе Chrome может не доверять
+        local_ip = None
+        try:
+            local_ip = socket.gethostbyname(socket.gethostname())
+        except Exception:
+            local_ip = None
+
+        extra_san = os.getenv("EXTRA_SAN", "")  # через запятую: dns1,dns2,ip1,ip2
+        san_entries = [
+            "DNS:localhost",
+            "IP:127.0.0.1",
+        ]
+        if local_ip and local_ip != "127.0.0.1":
+            san_entries.append(f"IP:{local_ip}")
+        if extra_san:
+            for item in [s.strip() for s in extra_san.split(',') if s.strip()]:
+                # Простая эвристика: если похоже на IP, добавим как IP, иначе как DNS
+                parts = item.split('.')
+                if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+                    san_entries.append(f"IP:{item}")
+                else:
+                    san_entries.append(f"DNS:{item}")
+
+        extensions = [
+            crypto.X509Extension(b"basicConstraints", True, b"CA:FALSE"),
+            crypto.X509Extension(b"keyUsage", True, b"digitalSignature, keyEncipherment"),
+            crypto.X509Extension(b"extendedKeyUsage", False, b"serverAuth"),
+            crypto.X509Extension(b"subjectAltName", False, ", ".join(san_entries).encode("utf-8")),
+        ]
+        cert.add_extensions(extensions)
+
         cert.sign(key, 'sha256')
         
         # Сохраняем сертификат и ключ
@@ -106,7 +148,7 @@ def generate_self_signed_cert():
         with open("ssl/key.pem", "wt") as f:
             f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode("utf-8"))
             
-        print("Самоподписанные SSL сертификаты сгенерированы")
+        print("Самоподписанные SSL сертификаты сгенерированы (с SAN):", ", ".join(san_entries))
         return True
         
     except ImportError:
@@ -149,7 +191,8 @@ if __name__ == '__main__':
             port=5000,       # Порт (можно изменить при необходимости)
             debug=True,
             allow_unsafe_werkzeug=True,  # Для работы в локальной сети
-            ssl_context=ssl_context      # SSL контекст
+            ssl_context=ssl_context,     # SSL контекст
+            use_reloader=False
         )
     except KeyboardInterrupt:
         print("\nПриложение завершено по запросу пользователя")

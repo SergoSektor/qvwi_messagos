@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Маслёнок — Автомагазин премиум-класса</title>
+    <style>
+        :root {
+            --apple-white: #f5f5f7;
+            --apple-black: #1d1d1f;
+            --apple-gray: #86868b;
+            --apple-blue: #0071e3;
+            --apple-light-gray: #d2d2d7;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+        
+        body {
+            background-color: var(--apple-white);
+            color: var(--apple-black);
+            line-height: 1.5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Навигация */
+        nav {
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+            padding: 15px 0;
+            border-bottom: 1px solid var(--apple-light-gray);
+        }
+        
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+        }
+        
+        .nav-links {
+            display: flex;
+            list-style: none;
+        }
+        
+        .nav-links li {
+            margin-left: 30px;
+        }
+        
+        .nav-links a {
+            text-decoration: none;
+            color: var(--apple-black);
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        
+        .nav-links a:hover {
+            color: var(--apple-blue);
+        }
+        
+        /* Герой секция */
+        .hero {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding-top: 70px;
+            background: linear-gradient(to bottom, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.7)), url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23f5f5f7"/><path d="M0 50 L100 50" stroke="%23d2d2d7" stroke-width="1"/><path d="M50 0 L50 100" stroke="%23d2d2d7" stroke-width="1"/></svg>');
+            background-size: 20px 20px;
+        }
+        
+        .hero h1 {
+            font-size: 56px;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+        
+        .hero p {
+            font-size: 24px;
+            color: var(--apple-gray);
+            max-width: 700px;
+            margin-bottom: 30px;
+        }
+        
+        .cta-button {
+            background-color: var(--apple-blue);
+            color: white;
+            border: none;
+            padding: 14px 30px;
+            border-radius: 30px;
+            font-size: 18px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .cta-button:hover {
+            background-color: #0077ed;
+            transform: scale(1.05);
+        }
+        
+        /* Секции */
+        section {
+            padding: 100px 0;
+        }
+        
+        .section-title {
+            text-align: center;
+            font-size: 40px;
+            margin-bottom: 60px;
+            font-weight: 700;
+        }
+        
+        /* Категории */
+        .categories {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        
+        .category-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .category-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+        }
+        
+        .category-icon {
+            font-size: 50px;
+            margin-bottom: 20px;
+        }
+        
+        .category-card h3 {
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        
+        .category-card p {
+            color: var(--apple-gray);
+            margin-bottom: 20px;
+        }
+        
+        /* Преимущества */
+        .benefits {
+            background-color: var(--apple-black);
+            color: white;
+        }
+        
+        .benefits-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+        }
+        
+        .benefit {
+            text-align: center;
+        }
+        
+        .benefit-icon {
+            font-size: 40px;
+            margin-bottom: 20px;
+        }
+        
+        .benefit h3 {
+            font-size: 22px;
+            margin-bottom: 15px;
+        }
+        
+        .benefit p {
+            color: var(--apple-light-gray);
+        }
+        
+        /* Популярные товары */
+        .products {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+        }
+        
+        .product-card {
+            background: white;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s;
+        }
+        
+        .product-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .product-image {
+            height: 200px;
+            background-color: var(--apple-light-gray);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 60px;
+        }
+        
+        .product-info {
+            padding: 20px;
+        }
+        
+        .product-info h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        
+        .product-info p {
+            color: var(--apple-gray);
+            margin-bottom: 15px;
+        }
+        
+        .product-price {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: block;
+        }
+        
+        .buy-button {
+            background-color: var(--apple-blue);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+        
+        .buy-button:hover {
+            background-color: #0077ed;
+        }
+        
+        /* Контакты */
+        .contact-info {
+            text-align: center;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .contact-info p {
+            font-size: 20px;
+            margin-bottom: 30px;
+            color: var(--apple-gray);
+        }
+        
+        /* Футер */
+        footer {
+            background-color: var(--apple-black);
+            color: white;
+            padding: 50px 0;
+            text-align: center;
+        }
+        
+        .footer-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .footer-logo {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+        
+        .footer-links {
+            display: flex;
+            list-style: none;
+            margin-bottom: 30px;
+        }
+        
+        .footer-links li {
+            margin: 0 15px;
+        }
+        
+        .footer-links a {
+            color: var(--apple-light-gray);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        .footer-links a:hover {
+            color: white;
+        }
+        
+        .copyright {
+            color: var(--apple-gray);
+            font-size: 14px;
+        }
+        
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            
+            .hero h1 {
+                font-size: 40px;
+            }
+            
+            .hero p {
+                font-size: 20px;
+            }
+            
+            .section-title {
+                font-size: 32px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Навигация -->
+    <nav>
+        <div class="container nav-container">
+            <div class="logo">🛢️ Маслёнок</div>
+            <ul class="nav-links">
+                <li><a href="#categories">Категории</a></li>
+                <li><a href="#products">Товары</a></li>
+                <li><a href="#benefits">Преимущества</a></li>
+                <li><a href="#contacts">Контакты</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Герой секция -->
+    <section class="hero">
+        <h1>Маслёнок 🛢️</h1>
+        <p>Качественные автотовары с доставкой по всей стране 🚗💨</p>
+        <button class="cta-button">Перейти к покупкам 🛒</button>
+    </section>
+
+    <!-- Категории -->
+    <section id="categories">
+        <div class="container">
+            <h2 class="section-title">Наши категории 🗂️</h2>
+            <div class="categories">
+                <div class="category-card">
+                    <div class="category-icon">🛢️</div>
+                    <h3>Моторные масла</h3>
+                    <p>Широкий выбор масел для любого типа двигателя</p>
+                    <button class="buy-button">Смотреть</button>
+                </div>
+                <div class="category-card">
+                    <div class="category-icon">🧴</div>
+                    <h3>Автохимия</h3>
+                    <p>Очистители, присадки и средства по уходу за авто</p>
+                    <button class="buy-button">Смотреть</button>
+                </div>
+                <div class="category-card">
+                    <div class="category-icon">🔧</div>
+                    <h3>Инструменты</h3>
+                    <p>Все необходимое для ремонта и обслуживания</p>
+                    <button class="buy-button">Смотреть</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Преимущества -->
+    <section id="benefits" class="benefits">
+        <div class="container">
+            <h2 class="section-title">Наши преимущества ✨</h2>
+            <div class="benefits-container">
+                <div class="benefit">
+                    <div class="benefit-icon">🚚</div>
+                    <h3>Быстрая доставка</h3>
+                    <p>Доставляем заказы в течение 24 часов по всей стране</p>
+                </div>
+                <div class="benefit">
+                    <div class="benefit-icon">⭐</div>
+                    <h3>Качество</h3>
+                    <p>Работаем только с проверенными производителями</p>
+                </div>
+                <div class="benefit">
+                    <div class="benefit-icon">🔍</div>
+                    <h3>Экспертиза</h3>
+                    <p>Поможем подобрать товар под ваши потребности</p>
+                </div>
+                <div class="benefit">
+                    <div class="benefit-icon">💎</div>
+                    <h3>Гарантия</h3>
+                    <p>Даем расширенную гарантию на все товары</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Популярные товары -->
+    <section id="products">
+        <div class="container">
+            <h2 class="section-title">Популярные товары 🔥</h2>
+            <div class="products">
+                <div class="product-card">
+                    <div class="product-image">🛢️</div>
+                    <div class="product-info">
+                        <h3>Mobil 1 Synthetic</h3>
+                        <p>Синтетическое моторное масло 5W-30</p>
+                        <span class="product-price">4 499 ₽</span>
+                        <button class="buy-button">Купить</button>
+                    </div>
+                </div>
+                <div class="product-card">
+                    <div class="product-image">🧴</div>
+                    <div class="product-info">
+                        <h3>Liqui Moly Anti-Rust</h3>
+                        <p>Антикоррозийное средство для авто</p>
+                        <span class="product-price">1 799 ₽</span>
+                        <button class="buy-button">Купить</button>
+                    </div>
+                </div>
+                <div class="product-card">
+                    <div class="product-image">🔧</div>
+                    <div class="product-info">
+                        <h3>Набор инструментов Kraftool</h3>
+                        <p>136 предметов для авторемонта</p>
+                        <span class="product-price">8 999 ₽</span>
+                        <button class="buy-button">Купить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Контакты -->
+    <section id="contacts">
+        <div class="container">
+            <h2 class="section-title">Контакты 📞</h2>
+            <div class="contact-info">
+                <p>📍 Москва, ул. Автомобильная, 42</p>
+                <p>⌚ Ежедневно с 9:00 до 21:00</p>
+                <p>📞 +7 (495) 123-45-67</p>
+                <p>✉️ info@maslenok.ru</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Футер -->
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-logo">🛢️ Маслёнок</div>
+                <ul class="footer-links">
+                    <li><a href="#">О нас</a></li>
+                    <li><a href="#">Доставка</a></li>
+                    <li><a href="#">Оплата</a></li>
+                    <li><a href="#">Гарантия</a></li>
+                    <li><a href="#">Контакты</a></li>
+                </ul>
+                <p class="copyright">© 2023 Маслёнок. Все права защищены.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Плавная прокрутка для навигации
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                
+                const targetId = this.getAttribute('href');
+                if (targetId === '#') return;
+                
+                const targetElement = document.querySelector(targetId);
+                if (targetElement) {
+                    window.scrollTo({
+                        top: targetElement.offsetTop - 70,
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+        
+        // Обработчик для кнопки CTA
+        document.querySelector('.cta-button').addEventListener('click', function() {
+            window.scrollTo({
+                top: document.getElementById('categories').offsetTop - 70,
+                behavior: 'smooth'
+            });
+        });
+    </script>
+</body>
+</html>
