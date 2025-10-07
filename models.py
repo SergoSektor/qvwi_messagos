@@ -118,8 +118,31 @@ def init_db():
                  user_id INTEGER NOT NULL,
                  until DATETIME NOT NULL,
                  reason TEXT,
+                 moderator_id INTEGER,
                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                  FOREIGN KEY(user_id) REFERENCES users(id))''')
+
+    # Добавляем недостающие столбцы в bans
+    c.execute("PRAGMA table_info(bans)")
+    bans_cols = [col[1] for col in c.fetchall()]
+    if 'moderator_id' not in bans_cols:
+        try:
+            c.execute("ALTER TABLE bans ADD COLUMN moderator_id INTEGER")
+        except sqlite3.OperationalError:
+            pass
+
+    # Логи модерации
+    c.execute('''CREATE TABLE IF NOT EXISTS moderation_logs (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  report_id INTEGER,
+                  moderator_id INTEGER NOT NULL,
+                  action TEXT NOT NULL,
+                  target_type TEXT,
+                  target_id INTEGER,
+                  details TEXT,
+                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  FOREIGN KEY(report_id) REFERENCES reports(id),
+                  FOREIGN KEY(moderator_id) REFERENCES users(id))''')
     
     # Тестовые пользователи с ролями
     users = [

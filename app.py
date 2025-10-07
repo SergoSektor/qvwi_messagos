@@ -87,6 +87,19 @@ def datetimeformat(value, format='%d.%m.%Y %H:%M'):
 
 app.jinja_env.filters['datetimeformat'] = datetimeformat  # Регистрируем фильтр
 
+# Фильтр для отображения только сути причины бана, без префиксов
+def banreason(value):
+    if not value:
+        return ''
+    try:
+        s = str(value)
+        parts = s.split(':', 1)
+        return parts[1].strip() if len(parts) == 2 else s
+    except Exception:
+        return value
+
+app.jinja_env.filters['banreason'] = banreason
+
 # Пробрасываем TURN-конфиг в шаблоны
 app.jinja_env.globals.update(
     TURN_URL=Config.TURN_URL,

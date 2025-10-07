@@ -462,12 +462,12 @@
     <div class="app-container">
         <div class="sidebar">
             <div class="profile-card">
-                <img src="{{ url_for('static', filename='uploads/' + user.avatar) if user.avatar else url_for('static', filename='uploads/default_avatar.png') }}" 
+                <img src="{{ url_for('static', filename='uploads/' + current_user.avatar) if current_user and current_user.avatar else url_for('static', filename='uploads/default_avatar.png') }}" 
                      alt="Avatar"
                      id="sidebar-avatar"
                      onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
-                <h3>{{ user.username }}</h3>
-                <p>{{ user.bio or 'Статус не указан' }}</p>
+                <h3>{{ current_user.username if current_user else 'Профиль' }}</h3>
+                <p>{{ current_user.bio if current_user else 'Статус не указан' }}</p>
             </div>
             <div class="nav">
                 <a href="{{ url_for('feed.feed') }}">
@@ -485,7 +485,7 @@
                 <a href="{{ url_for('friends.friends') }}" {% if active_page == 'friends' %}class="active"{% endif %}>
                     <i class="fas fa-user-friends"></i> Друзья
                 </a>
-                {% if user[6] == 'admin' %}  <!-- Проверка на администратора -->
+                {% if current_user and current_user.role == 'admin' %}
                 <a href="{{ url_for('admin.admin') }}" {% if active_page == 'admin' %}class="active"{% endif %}>
                     <i class="fas fa-cog"></i> Администрирование
                 </a>
@@ -533,7 +533,7 @@
                         {% if user.is_blocked %}
                             <span style="color:#e74c3c"><i class="fas fa-user-lock"></i> Профиль заблокирован</span>
                             {% if user.block_reason %}
-                                <span style="display:block; color:#ffb4b4; margin-top:4px;">Причина: {{ user.block_reason }}</span>
+                                <span style="display:block; color:#ffb4b4; margin-top:4px;">Причина: {{ user.block_reason | banreason }}</span>
                             {% endif %}
                         {% else %}
                             {% if user.is_online %}
@@ -703,8 +703,10 @@
                     // Обновляем превью аватарки в шапке
                     document.getElementById('header-avatar').src = e.target.result;
                     
-                    // Обновляем аватарку в сайдбаре
-                    document.getElementById('sidebar-avatar').src = e.target.result;
+                    // Обновляем аватарку в сайдбаре только если это свой профиль
+                    if ({{ 'true' if is_own_profile else 'false' }}) {
+                        document.getElementById('sidebar-avatar').src = e.target.result;
+                    }
                     
                     // Обновляем поле в форме редактирования
                     if (avatarFileInput) {

@@ -22,6 +22,18 @@ def profile(user_id):
     conn = get_db()
     c = conn.cursor()
 
+    # Текущий пользователь для сайдбара
+    c.execute("SELECT id, username, email, bio, avatar, role FROM users WHERE id = ?", (session['user_id'],))
+    me = c.fetchone()
+    current_user = {
+        'id': me[0],
+        'username': me[1],
+        'email': me[2],
+        'bio': me[3],
+        'avatar': me[4],
+        'role': me[5]
+    } if me else None
+
     # Обработка POST-запроса
     if request.method == 'POST' and is_own_profile:
         bio = request.form.get('bio', '')
@@ -80,6 +92,20 @@ def profile(user_id):
         'block_reason': user[9]
     }
 
+    # Кто заблокировал (для временного бана)
+    block_moderator = None
+    if user_data['is_blocked']:
+        c.execute("""
+            SELECT b.id, b.reason, b.created_at, u.username AS moderator
+            FROM bans b LEFT JOIN users u ON b.moderator_id = u.id
+            WHERE b.user_id = ?
+            ORDER BY b.created_at DESC
+            LIMIT 1
+        """, (user_id,))
+        last_ban = c.fetchone()
+        if last_ban and last_ban['moderator']:
+            block_moderator = last_ban['moderator']
+
     # Получаем посты пользователя
     c.execute("SELECT id, content, timestamp FROM posts WHERE user_id = ? ORDER BY timestamp DESC", (user_id,))
     posts = c.fetchall()
@@ -88,6 +114,8 @@ def profile(user_id):
 
     return render_template('profile.html',
                          user=user_data,
+                         current_user=current_user,
+                         block_moderator=block_moderator,
                          posts=posts,
                          is_own_profile=is_own_profile)
 

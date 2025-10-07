@@ -172,6 +172,7 @@
                 <div class="admin-tab active" data-tab="users">Управление пользователями</div>
                 <div class="admin-tab" data-tab="system">Системные настройки</div>
                 <div class="admin-tab" data-tab="moderation">Модерация контента</div>
+                <div class="admin-tab" data-tab="modlog">Журнал модерации</div>
             </div>
             
             <div class="tab-content active" id="users-tab">
@@ -190,7 +191,7 @@
                     </thead>
                     <tbody>
                         {% for u in users %}
-                        <tr>
+                        <tr data-user-id="{{ u[0] }}">
                             <td>{{ u[0] }}</td>
                             <td>{{ u[1] }}</td>
                             <td>{{ u[2] }}</td>
@@ -298,30 +299,13 @@
                     <tbody>
                         {% for r in reports %}
                         <tr>
-                            <td>{{ r[0] }}</td>
+                            <td>{% set prefix = {'post':'P','comment':'C','user':'U'}[r[1]] %}{{ prefix }}-{{ r[0] }}</td>
                             <td>{{ r[1] }}</td>
                             <td>{{ r[2] }}</td>
                             <td>{{ r[3] }}</td>
                             <td>{{ r[4] }}</td>
-                            <td>
-                                <form method="POST" action="{{ url_for('admin.resolve_report') }}" style="display:flex; gap:8px; align-items:center;">
-                                    <input type="hidden" name="report_id" value="{{ r[0] }}">
-                                    <input type="hidden" name="target_type" value="{{ r[1] }}">
-                                    <input type="hidden" name="target_id" value="{{ r[2] }}">
-                                    <select name="action" style="padding:6px 8px; border-radius:8px;">
-                                        <option value="delete">Удалить</option>
-                                        <option value="ban">Заблокировать</option>
-                                        <option value="block">Заблокировать навсегда</option>
-                                    </select>
-                                    <input type="number" name="ban_minutes" placeholder="мин" min="0" value="60" style="width:80px;">
-                                    <input type="text" name="ban_reason" placeholder="Причина блокировки" style="width:200px; padding:6px 8px; border-radius:8px;">
-                                    <label style="display:flex; align-items:center; gap:6px; color:var(--muted); font-size:0.9rem;">
-                                        <input type="checkbox" name="forever" value="1"> Навсегда
-                                    </label>
-                                    <button type="submit" class="btn">Применить</button>
-                                    <button type="button" class="btn btn-danger js-ban-delete" data-report="{{ r[0] }}" data-type="{{ r[1] }}" data-target="{{ r[2] }}">Заблокировать и удалить</button>
-                                    <button type="button" class="btn" onclick="openReport({{ r[0] }})">Открыть</button>
-                                </form>
+                            <td class="action-buttons">
+                                <button type="button" class="btn" onclick="openReport({{ r[0] }})"><i class="fas fa-eye"></i> Открыть</button>
                             </td>
                         </tr>
                         {% endfor %}
@@ -330,6 +314,43 @@
                 {% else %}
                     <p style="color:var(--muted)">Нет открытых жалоб</p>
                 {% endif %}
+            </div>
+
+            <div class="tab-content" id="modlog-tab">
+                <h2>Журнал модерации</h2>
+                <div class="admin-form" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:10px; margin-bottom:10px;">
+                    <input id="flt-q" type="text" placeholder="Поиск...">
+                    <select id="flt-action">
+                        <option value="">Все действия</option>
+                        <option value="delete">Удалить</option>
+                        <option value="ban">Бан</option>
+                        <option value="block">Блокировка</option>
+                        <option value="ban_delete">Бан+Удалить</option>
+                        <option value="block_delete">Блок+Удалить</option>
+                    </select>
+                    <input id="flt-mod" type="text" placeholder="Модератор">
+                    <input id="flt-from" type="datetime-local">
+                    <input id="flt-to" type="datetime-local">
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button class="btn" id="flt-apply">Фильтр</button>
+                        <a class="btn" id="flt-export" href="#">Экспорт CSV</a>
+                    </div>
+                </div>
+                <div id="modlog" class="section" style="padding:0; overflow:auto;">
+                    <table class="user-table">
+                        <thead>
+                            <tr>
+                                <th>Время</th>
+                                <th>Модератор</th>
+                                <th>Действие</th>
+                                <th>Цель</th>
+                                <th>Детали</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modlog-body">
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -345,8 +366,42 @@
                 // Добавляем активный класс текущей вкладке
                 tab.classList.add('active');
                 document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+                if (tab.dataset.tab === 'modlog') {
+                    loadModlog();
+                }
             });
         });
+
+        function loadModlog(){
+            const q = encodeURIComponent(document.getElementById('flt-q').value||'');
+            const action = encodeURIComponent(document.getElementById('flt-action').value||'');
+            const moderator = encodeURIComponent(document.getElementById('flt-mod').value||'');
+            const from = encodeURIComponent(document.getElementById('flt-from').value||'');
+            const to = encodeURIComponent(document.getElementById('flt-to').value||'');
+            const url = `/admin/modlog.json?q=${q}&action=${action}&moderator=${moderator}&from=${from}&to=${to}`;
+            fetch(url).then(r=>r.json()).then(data=>{
+                const tb = document.getElementById('modlog-body');
+                const logs = (data && data.logs) || [];
+                tb.innerHTML = logs.map(l=>{
+                    const prefixMap = { post: 'P', comment: 'C', user: 'U' };
+                    const pref = prefixMap[l.target_type] || '?';
+                    const code = (l.target_type && l.report_id) ? (pref + '-' + l.report_id) : '';
+                    return `<tr>
+                        <td>${l.created_at}</td>
+                        <td>${l.moderator}</td>
+                        <td>${l.action}</td>
+                        <td>${l.target_type||''} ${l.target_id||''} ${code ? '('+code+')' : ''}</td>
+                        <td>${l.details||''}</td>
+                    </tr>`;
+                }).join('');
+                const exportUrl = `/admin/modlog.csv?q=${q}&action=${action}&moderator=${moderator}&from=${from}&to=${to}`;
+                document.getElementById('flt-export').href = exportUrl;
+            }).catch(()=>{
+                document.getElementById('modlog-body').innerHTML = '<tr><td colspan="5" style="color:var(--muted)">Не удалось загрузить журнал</td></tr>'
+            })
+        }
+
+        document.getElementById('flt-apply').addEventListener('click', loadModlog);
 
         // Инициализация темы (общая логика с index/theme.js)
         (function(){
@@ -361,8 +416,14 @@
             <div class="modal">
                 <div class="modal-header">Блокировка пользователя</div>
                 <div class="modal-body">
-                    <div style=\"margin-bottom:8px; color: var(--muted);\">Укажите причину блокировки для <span id=\"ban-user\"></span>:</div>
-                    <textarea id=\"ban-reason\" placeholder=\"Например: спам, оскорбления, публикация запрещённого контента\"></textarea>
+                    <div style=\"margin-bottom:8px; color: var(--muted);\">Укажите параметры блокировки для <span id=\"ban-user\"></span>:</div>
+                    <div style=\"display:grid; gap:10px;\">
+                        <textarea id=\"ban-reason\" placeholder=\"Причина (например: спам, оскорбления, запрещённый контент)\"></textarea>
+                        <div style=\"display:flex; gap:10px; align-items:center;\">
+                            <input type=\"number\" id=\"ban-minutes\" value=\"60\" min=\"1\" style=\"width:110px;\" placeholder=\"минуты\">
+                            <label style=\"display:flex; gap:8px; align-items:center; color:var(--muted);\"><input type=\"checkbox\" id=\"ban-forever\"> Навсегда</label>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn" id="ban-cancel">Отмена</button>
@@ -398,21 +459,23 @@
         reportModal.style.display = 'none';
         reportModal.innerHTML = `
             <div class="modal" style="max-width:860px;">
-                <div class="modal-header">Тикет <span id="rep-id"></span></div>
+                <div class="modal-header">Тикет <span id="rep-id"></span> <span id="rep-code" style="color:var(--muted); font-weight:400; margin-left:6px;"></span></div>
                 <div class="modal-body">
                     <div id="rep-content" style="display:flex; gap:12px; align-items:flex-start;"></div>
+                    <div id="rep-logs" style="margin-top:12px; background:var(--card); border:1px solid var(--table-border); border-radius:8px; padding:10px;">
+                        <div style="font-weight:600; margin-bottom:6px; color:var(--muted);">История действий</div>
+                        <div id="rep-logs-body" style="display:grid; gap:6px;"></div>
+                    </div>
                     <div style="margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                        <select id="rep-action">
-                            <option value="delete">Удалить</option>
-                            <option value="ban">Заблокировать</option>
-                            <option value="block">Заблокировать навсегда</option>
-                        </select>
-                        <input type="number" id="rep-min" value="60" min="0" placeholder="мин" style="width:90px;">
-                        <input type="text" id="rep-reason" placeholder="Причина блокировки" style="width:200px; padding:6px 8px; border-radius:8px;">
-                        <label style="display:flex; gap:6px; align-items:center; color:var(--muted);"><input type="checkbox" id="rep-forever" value="1"> Навсегда</label>
-                        <button class="btn" id="rep-apply">Применить</button>
-                        <button class="btn btn-danger" id="rep-apply-ban-delete">Заблокировать и удалить</button>
-                        <button class="btn" id="rep-close">Закрыть</button>
+                        <input type="text" id="rep-reason" placeholder="Причина блокировки" style="flex:1; min-width:220px; padding:10px 12px; border:1px solid var(--table-border); border-radius:8px; background:var(--card); color:var(--text);">
+                        <input type="number" id="rep-min" value="60" min="1" placeholder="мин" style="width:100px; padding:10px 12px; border:1px solid var(--table-border); border-radius:8px; background:var(--card); color:var(--text);">
+                        <label style="display:flex; gap:8px; align-items:center; color:var(--muted);"><input type="checkbox" id="rep-forever" value="1"> Навсегда</label>
+                    </div>
+                    <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+                        <button class="btn btn-danger" id="rep-delete"><i class="fas fa-trash"></i> Удалить</button>
+                        <button class="btn btn-warning" id="rep-ban"><i class="fas fa-user-lock"></i> Заблокировать</button>
+                        <button class="btn btn-danger" id="rep-ban-delete"><i class="fas fa-user-slash"></i> Заблокировать и удалить</button>
+                        <button class="btn" id="rep-close"><i class="fas fa-times"></i> Закрыть</button>
                     </div>
                 </div>
             </div>`;
@@ -432,42 +495,40 @@
             const data = await res.json();
             if (!data || !data.report){ toast('Не удалось загрузить тикет'); return; }
             currentReport = data.report;
+            const codePrefix = {post:'P', comment:'C', user:'U'}[currentReport.target_type] || '?';
             document.getElementById('rep-id').textContent = `#${currentReport.id}`;
+            document.getElementById('rep-code').textContent = `(${codePrefix}-${currentReport.id})`;
             document.getElementById('rep-content').innerHTML = renderTarget(data.target);
+            // логи
+            const logs = Array.isArray(data.logs) ? data.logs : [];
+            const body = document.getElementById('rep-logs-body');
+            body.innerHTML = logs.length ? logs.map(l=>`<div style="display:flex; gap:8px; align-items:center;">
+                <span style=\"font-weight:600\">${l.moderator}</span>
+                <span style=\"color:var(--muted)\">${l.created_at}</span>
+                <span>${l.action}</span>
+                <span style=\"color:var(--muted)\">${l.details || ''}</span>
+            </div>`).join('') : '<div style="color:var(--muted)">Нет действий</div>';
             reportModal.style.display = 'flex';
         }
         document.addEventListener('click', async (e)=>{
             if (e.target.id === 'rep-close') reportModal.style.display = 'none';
-            if (e.target.id === 'rep-apply' && currentReport){
+            const make = async (payload) => {
                 const fd = new FormData();
                 fd.append('report_id', currentReport.id);
                 fd.append('target_type', currentReport.target_type);
                 fd.append('target_id', currentReport.target_id);
-                fd.append('action', document.getElementById('rep-action').value);
                 fd.append('ban_minutes', document.getElementById('rep-min').value);
                 fd.append('ban_reason', document.getElementById('rep-reason').value);
                 if (document.getElementById('rep-forever').checked) fd.append('forever','1');
+                fd.append('action', payload);
                 const resp = await fetch('/admin/report/resolve', { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} });
                 const ans = await resp.json().catch(()=>({success:false}));
-                if (ans && ans.success){ toast('Жалоба обработана'); reportModal.style.display = 'none'; location.reload(); }
+                if (ans && ans.success){ toast('Действие выполнено'); reportModal.style.display = 'none'; location.reload(); }
                 else toast('Не удалось применить действие');
-            }
-            if (e.target.id === 'rep-apply-ban-delete' && currentReport){
-                const fd = new FormData();
-                fd.append('report_id', currentReport.id);
-                fd.append('target_type', currentReport.target_type);
-                fd.append('target_id', currentReport.target_id);
-                // выбор навсегда или на время
-                const forever = document.getElementById('rep-forever').checked;
-                fd.append('action', forever ? 'block_delete' : 'ban_delete');
-                fd.append('ban_minutes', document.getElementById('rep-min').value);
-                fd.append('ban_reason', document.getElementById('rep-reason').value);
-                if (forever) fd.append('forever','1');
-                const resp = await fetch('/admin/report/resolve', { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} });
-                const ans = await resp.json().catch(()=>({success:false}));
-                if (ans && ans.success){ toast('Заблокирован и удалено'); reportModal.style.display = 'none'; location.reload(); }
-                else toast('Не удалось применить действие');
-            }
+            };
+            if (e.target.id === 'rep-delete' && currentReport){ await make('delete'); }
+            if (e.target.id === 'rep-ban' && currentReport){ await make(document.getElementById('rep-forever').checked ? 'block' : 'ban'); }
+            if (e.target.id === 'rep-ban-delete' && currentReport){ await make(document.getElementById('rep-forever').checked ? 'block_delete' : 'ban_delete'); }
         });
 
         // Тост
@@ -498,30 +559,7 @@
             });
         });
 
-        // Кнопка "Заблокировать и удалить" в строке таблицы
-        document.querySelectorAll('#moderation-tab .js-ban-delete').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const tr = btn.closest('tr');
-                const reportId = btn.dataset.report;
-                const fd = new FormData();
-                fd.append('report_id', reportId);
-                fd.append('target_type', btn.dataset.type);
-                fd.append('target_id', btn.dataset.target);
-                // соберем соседние поля для времени/причины/навсегда
-                const form = btn.closest('form');
-                const minutes = form.querySelector('input[name="ban_minutes"]').value || '60';
-                const reason = form.querySelector('input[name="ban_reason"]').value || '';
-                const forever = form.querySelector('input[name="forever"]').checked;
-                fd.append('action', forever ? 'block_delete' : 'ban_delete');
-                fd.append('ban_minutes', minutes);
-                fd.append('ban_reason', reason);
-                if (forever) fd.append('forever','1');
-                const resp = await fetch('/admin/report/resolve', { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} });
-                const ans = await resp.json().catch(()=>({success:false}));
-                if (ans && ans.success){ tr && tr.remove(); toast('Заблокирован и удалено'); }
-                else toast('Не удалось применить действие');
-            });
-        });
+        // Убрали inline‑формы из таблицы: всё через модалку
 
         let targetUserId = null;
         document.querySelectorAll('.js-open-block').forEach(btn => {
@@ -549,15 +587,20 @@
             if (e.target.id === 'ban-cancel') modalBackdrop.style.display = 'none';
             if (e.target.id === 'ban-confirm') {
                 if (!targetUserId) return;
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = `/toggle_block/${targetUserId}`;
-                const input = document.createElement('input');
-                input.type = 'hidden'; input.name = 'reason';
-                input.value = document.getElementById('ban-reason').value || 'Нарушение правил сообщества';
-                form.appendChild(input);
-                document.body.appendChild(form);
-                form.submit();
+                const reason = document.getElementById('ban-reason').value || 'Нарушение правил сообщества';
+                const forever = document.getElementById('ban-forever').checked;
+                const minutes = document.getElementById('ban-minutes').value || '60';
+                const fd = new FormData();
+                fd.append('reason', reason);
+                fd.append('minutes', minutes);
+                if (forever) fd.append('forever','1');
+                fetch(`/admin/ban_user/${targetUserId}`, { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} })
+                    .then(r=>r.json().catch(()=>({success:false})))
+                    .then(ans=>{
+                        if (ans && (ans.success || ans === true)) { modalBackdrop.style.display = 'none'; location.reload(); }
+                        else { toast('Не удалось применить блокировку'); }
+                    })
+                    .catch(()=> toast('Ошибка сети'));
             }
             if (e.target.id === 'edit-cancel') editModal.style.display = 'none';
             if (e.target.id === 'edit-save') {

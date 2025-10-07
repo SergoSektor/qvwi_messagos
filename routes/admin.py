@@ -184,6 +184,7 @@ def resolve_report():
     ban_minutes = int(request.form.get('ban_minutes', 0) or 0)
     ban_reason = request.form.get('ban_reason', 'Нарушение правил').strip()
     forever = request.form.get('forever') == '1'
+    moderator_id = session['user_id']
 
     target_user_id = None
     if target_type == 'user':
@@ -201,6 +202,8 @@ def resolve_report():
             c.execute('DELETE FROM posts WHERE id=?', (target_id,))
         elif target_type == 'comment':
             c.execute('DELETE FROM comments WHERE id=?', (target_id,))
+        c.execute("INSERT INTO moderation_logs (report_id, moderator_id, action, target_type, target_id, details) VALUES (?,?,?,?,?,?)",
+                  (report_id, moderator_id, 'delete', target_type, target_id, None))
 
     # Временный бан
     if action == 'ban' and target_user_id and ban_minutes > 0:
@@ -208,7 +211,9 @@ def resolve_report():
         until = datetime.now() + timedelta(minutes=ban_minutes)
         reason_text = f'Бан на {ban_minutes} минут: {ban_reason}'
         c.execute('UPDATE users SET is_blocked=1, block_reason=? WHERE id=?', (reason_text, target_user_id))
-        c.execute('INSERT INTO bans (user_id, until, reason) VALUES (?,?,?)', (target_user_id, until, ban_reason))
+        c.execute('INSERT INTO bans (user_id, until, reason, moderator_id) VALUES (?,?,?,?)', (target_user_id, until, ban_reason, moderator_id))
+        c.execute("INSERT INTO moderation_logs (report_id, moderator_id, action, target_type, target_id, details) VALUES (?,?,?,?,?,?)",
+                  (report_id, moderator_id, 'ban', target_type, target_id, reason_text))
         try:
             emit_to_user('account_blocked', {'reason': reason_text}, target_user_id)
         except Exception:
@@ -218,6 +223,8 @@ def resolve_report():
     if action == 'block' and target_user_id:
         reason_text = f'Блокировка: {ban_reason}'
         c.execute('UPDATE users SET is_blocked=1, block_reason=? WHERE id=?', (reason_text, target_user_id))
+        c.execute("INSERT INTO moderation_logs (report_id, moderator_id, action, target_type, target_id, details) VALUES (?,?,?,?,?,?)",
+                  (report_id, moderator_id, 'block', target_type, target_id, reason_text))
         try:
             emit_to_user('account_blocked', {'reason': reason_text}, target_user_id)
         except Exception:
@@ -235,6 +242,8 @@ def resolve_report():
             if forever or action == 'block_delete':
                 reason_text = f'Блокировка: {ban_reason}'
                 c.execute('UPDATE users SET is_blocked=1, block_reason=? WHERE id=?', (reason_text, target_user_id))
+                c.execute("INSERT INTO moderation_logs (report_id, moderator_id, action, target_type, target_id, details) VALUES (?,?,?,?,?,?)",
+                          (report_id, moderator_id, 'block_delete', target_type, target_id, reason_text))
                 try:
                     emit_to_user('account_blocked', {'reason': reason_text}, target_user_id)
                 except Exception:
@@ -245,7 +254,9 @@ def resolve_report():
                     until = datetime.now() + timedelta(minutes=ban_minutes)
                     reason_text = f'Бан на {ban_minutes} минут: {ban_reason}'
                     c.execute('UPDATE users SET is_blocked=1, block_reason=? WHERE id=?', (reason_text, target_user_id))
-                    c.execute('INSERT INTO bans (user_id, until, reason) VALUES (?,?,?)', (target_user_id, until, ban_reason))
+                    c.execute('INSERT INTO bans (user_id, until, reason, moderator_id) VALUES (?,?,?,?)', (target_user_id, until, ban_reason, moderator_id))
+                    c.execute("INSERT INTO moderation_logs (report_id, moderator_id, action, target_type, target_id, details) VALUES (?,?,?,?,?,?)",
+                              (report_id, moderator_id, 'ban_delete', target_type, target_id, reason_text))
                     try:
                         emit_to_user('account_blocked', {'reason': reason_text}, target_user_id)
                     except Exception:
@@ -276,6 +287,11 @@ def report_json(report_id):
         'target_id': r['target_id'], 'reason': r['reason'], 'status': r['status'], 'created_at': r['created_at']
     }
     target = None
+    # История логов по тикету
+    c.execute('''SELECT ml.id, ml.action, ml.details, ml.created_at, u.username as moderator
+                 FROM moderation_logs ml JOIN users u ON ml.moderator_id=u.id
+                 WHERE ml.report_id=? ORDER BY ml.created_at DESC''', (report_id,))
+    logs = [dict(id=row['id'], action=row['action'], details=row['details'], created_at=row['created_at'], moderator=row['moderator']) for row in c.fetchall()]
     if r['target_type'] == 'post':
         c.execute('SELECT p.id, p.user_id, p.content, p.timestamp, u.username, u.avatar FROM posts p JOIN users u ON p.user_id=u.id WHERE p.id=?', (r['target_id'],))
         t = c.fetchone();
@@ -289,7 +305,93 @@ def report_json(report_id):
         t = c.fetchone();
         if t: target = {'id': t['id'], 'username': t['username'], 'avatar': t['avatar'], 'email': t['email']}
     conn.close()
-    return jsonify({'report': data, 'target': target})
+    return jsonify({'report': data, 'target': target, 'logs': logs})
+
+@bp.route('/admin/modlog.json')
+def modlog_json():
+    if 'user_id' not in session:
+        return jsonify({'error':'unauth'}), 401
+    conn = get_db(); c = conn.cursor()
+    c.execute("SELECT role FROM users WHERE id=?", (session['user_id'],))
+    role = c.fetchone()['role']
+    if role not in ('admin','moderator'):
+        conn.close(); return jsonify({'error':'forbidden'}), 403
+    # Фильтры
+    q = (request.args.get('q') or '').strip()
+    action = (request.args.get('action') or '').strip()
+    moderator = (request.args.get('moderator') or '').strip()
+    date_from = (request.args.get('from') or '').strip()
+    date_to = (request.args.get('to') or '').strip()
+
+    base_sql = '''SELECT ml.created_at, u.username AS moderator, ml.action, ml.target_type, ml.target_id, ml.details, ml.report_id
+                  FROM moderation_logs ml JOIN users u ON ml.moderator_id=u.id'''
+    where = []
+    params = []
+    if q:
+        where.append('(ml.details LIKE ? OR ml.action LIKE ? OR u.username LIKE ? OR CAST(ml.target_id AS TEXT) LIKE ? OR ml.target_type LIKE ?)')
+        like = f'%{q}%'
+        params += [like, like, like, like, like]
+    if action:
+        where.append('ml.action = ?'); params.append(action)
+    if moderator:
+        where.append('u.username LIKE ?'); params.append(f'%{moderator}%')
+    if date_from:
+        where.append('ml.created_at >= ?'); params.append(date_from)
+    if date_to:
+        where.append('ml.created_at <= ?'); params.append(date_to)
+    if where:
+        base_sql += ' WHERE ' + ' AND '.join(where)
+    base_sql += ' ORDER BY ml.created_at DESC LIMIT 500'
+    c.execute(base_sql, tuple(params))
+    rows = [dict(created_at=r['created_at'], moderator=r['moderator'], action=r['action'], target_type=r['target_type'], target_id=r['target_id'], details=r['details'], report_id=r['report_id']) for r in c.fetchall()]
+    conn.close()
+    return jsonify({'logs': rows})
+
+@bp.route('/admin/modlog.csv')
+def modlog_csv():
+    if 'user_id' not in session:
+        return 'unauth', 401
+    conn = get_db(); c = conn.cursor()
+    c.execute("SELECT role FROM users WHERE id=?", (session['user_id'],))
+    role = c.fetchone()['role']
+    if role not in ('admin','moderator'):
+        conn.close(); return 'forbidden', 403
+    # такие же фильтры
+    q = (request.args.get('q') or '').strip()
+    action = (request.args.get('action') or '').strip()
+    moderator = (request.args.get('moderator') or '').strip()
+    date_from = (request.args.get('from') or '').strip()
+    date_to = (request.args.get('to') or '').strip()
+    base_sql = '''SELECT ml.created_at, u.username AS moderator, ml.action, ml.target_type, ml.target_id, ml.details, ml.report_id
+                  FROM moderation_logs ml JOIN users u ON ml.moderator_id=u.id'''
+    where = []
+    params = []
+    if q:
+        like = f'%{q}%'
+        where.append('(ml.details LIKE ? OR ml.action LIKE ? OR u.username LIKE ? OR CAST(ml.target_id AS TEXT) LIKE ? OR ml.target_type LIKE ?)')
+        params += [like, like, like, like, like]
+    if action:
+        where.append('ml.action = ?'); params.append(action)
+    if moderator:
+        where.append('u.username LIKE ?'); params.append(f'%{moderator}%')
+    if date_from:
+        where.append('ml.created_at >= ?'); params.append(date_from)
+    if date_to:
+        where.append('ml.created_at <= ?'); params.append(date_to)
+    if where:
+        base_sql += ' WHERE ' + ' AND '.join(where)
+    base_sql += ' ORDER BY ml.created_at DESC'
+    c.execute(base_sql, tuple(params))
+    rows = c.fetchall(); conn.close()
+    # CSV
+    import csv, io
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['created_at','moderator','action','target_type','target_id','details','report_id'])
+    for r in rows:
+        writer.writerow([r['created_at'], r['moderator'], r['action'], r['target_type'], r['target_id'], r['details'], r['report_id']])
+    from flask import Response
+    return Response(output.getvalue(), mimetype='text/csv', headers={'Content-Disposition':'attachment; filename=modlog.csv'})
 
 @bp.route('/make_admin/<int:user_id>', methods=['POST'])
 def make_admin(user_id):
@@ -346,8 +448,22 @@ def toggle_block(user_id):
         # Уведомляем пользователя в реальном времени
         if not was_blocked:
             emit_to_user('account_blocked', {'reason': reason or 'Профиль заблокирован администратором'}, user_id)
+            # Логируем блокировку, если вдруг использовали toggle как блокировку
+            try:
+                c.execute("INSERT INTO moderation_logs (report_id, moderator_id, action, target_type, target_id, details) VALUES (?,?,?,?,?,?)",
+                          (None, current_user_id, 'block', 'user', user_id, reason))
+                conn.commit()
+            except Exception:
+                pass
         else:
             emit_to_user('account_unblocked', {}, user_id)
+            # Логируем разблокировку
+            try:
+                c.execute("INSERT INTO moderation_logs (report_id, moderator_id, action, target_type, target_id, details) VALUES (?,?,?,?,?,?)",
+                          (None, current_user_id, 'unblock', 'user', user_id, None))
+                conn.commit()
+            except Exception:
+                pass
     except sqlite3.Error:
         conn.rollback()
     finally:
@@ -374,6 +490,13 @@ def ban_user(user_id):
             c.execute("UPDATE users SET is_blocked=1, block_reason=? WHERE id=?", (reason or 'Блокировка', user_id))
             conn.commit()
             emit_to_user('account_blocked', {'reason': reason}, user_id)
+            # Лог
+            try:
+                c.execute("INSERT INTO moderation_logs (report_id, moderator_id, action, target_type, target_id, details) VALUES (?,?,?,?,?,?)",
+                          (None, current_user_id, 'block', 'user', user_id, reason))
+                conn.commit()
+            except Exception:
+                pass
         else:
             from datetime import datetime, timedelta
             until = datetime.now() + timedelta(minutes=max(1, minutes))
@@ -381,6 +504,13 @@ def ban_user(user_id):
             c.execute("INSERT INTO bans (user_id, until, reason) VALUES (?,?,?)", (user_id, until, reason))
             conn.commit()
             emit_to_user('account_blocked', {'reason': f'Бан на {minutes} минут: {reason}'}, user_id)
+            # Лог
+            try:
+                c.execute("INSERT INTO moderation_logs (report_id, moderator_id, action, target_type, target_id, details) VALUES (?,?,?,?,?,?)",
+                          (None, current_user_id, 'ban', 'user', user_id, f'Бан на {minutes} минут: {reason}'))
+                conn.commit()
+            except Exception:
+                pass
     finally:
         conn.close()
     # AJAX поддержка
