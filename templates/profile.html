@@ -482,6 +482,9 @@
                 <a href="{{ url_for('messages.messages') }}" {% if active_page == 'messages' %}class="active"{% endif %}>
                     <i class="fas fa-comments"></i> Сообщения
                 </a>
+                <a href="{{ url_for('music.music_index') }}" {% if active_page == 'music' %}class="active"{% endif %}>
+                    <i class="fas fa-music"></i> Музыка
+                </a>
                 <a href="{{ url_for('friends.friends') }}" {% if active_page == 'friends' %}class="active"{% endif %}>
                     <i class="fas fa-user-friends"></i> Друзья
                 </a>

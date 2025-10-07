@@ -112,6 +112,41 @@ def init_db():
                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                  FOREIGN KEY(reporter_id) REFERENCES users(id))''')
 
+    # Музыка
+    c.execute('''CREATE TABLE IF NOT EXISTS music (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 user_id INTEGER NOT NULL,
+                 filename TEXT NOT NULL,
+                 title TEXT,
+                 uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                 FOREIGN KEY(user_id) REFERENCES users(id))''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS music_reports (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 reporter_id INTEGER NOT NULL,
+                 track_id INTEGER NOT NULL,
+                 reason TEXT NOT NULL,
+                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                 status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved','rejected')),
+                 FOREIGN KEY(reporter_id) REFERENCES users(id),
+                 FOREIGN KEY(track_id) REFERENCES music(id))''')
+
+    # Плейлисты
+    c.execute('''CREATE TABLE IF NOT EXISTS playlists (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 user_id INTEGER NOT NULL,
+                 title TEXT NOT NULL,
+                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                 FOREIGN KEY(user_id) REFERENCES users(id))''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS playlist_tracks (
+                 playlist_id INTEGER NOT NULL,
+                 track_id INTEGER NOT NULL,
+                 position INTEGER DEFAULT 0,
+                 PRIMARY KEY (playlist_id, track_id),
+                 FOREIGN KEY(playlist_id) REFERENCES playlists(id),
+                 FOREIGN KEY(track_id) REFERENCES music(id))''')
+
     # Временные блокировки
     c.execute('''CREATE TABLE IF NOT EXISTS bans (
                  id INTEGER PRIMARY KEY AUTOINCREMENT,

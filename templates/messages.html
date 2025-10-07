@@ -554,6 +554,9 @@
                 <a href="{{ url_for('friends.friends') }}" {% if active_page == 'friends' %}class="active"{% endif %}>
                     <i class="fas fa-user-friends"></i> Друзья
                 </a>
+                <a href="{{ url_for('music.music_index') }}" {% if active_page == 'music' %}class="active"{% endif %}>
+                    <i class="fas fa-music"></i> Музыка
+                </a>
                 {% if user[6] == 'admin' %}  <!-- Проверка на администратора -->
                 <a href="{{ url_for('admin.admin') }}" {% if active_page == 'admin' %}class="active"{% endif %}>
                     <i class="fas fa-cog"></i> Администрирование

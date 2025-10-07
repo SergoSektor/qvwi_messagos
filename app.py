@@ -17,6 +17,7 @@ from routes.friends import bp as friends_bp
 from routes.static import bp as static_bp
 from gevent import monkey
 from routes.admin import bp as admin_bp
+from routes.music import bp as music_bp
 
 # Монки-патчинг должен быть самым первым!
 monkey.patch_all()
@@ -40,6 +41,7 @@ init_db()
 # Создание папок для загрузок
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['MESSAGE_FILES_FOLDER'], exist_ok=True)
+os.makedirs(Config.MUSIC_FOLDER, exist_ok=True)
 
 # Создание папки для SSL сертификатов
 os.makedirs('ssl', exist_ok=True)
@@ -58,6 +60,7 @@ app.register_blueprint(messages.bp)
 app.register_blueprint(friends.bp)
 app.register_blueprint(static.bp)
 app.register_blueprint(admin_bp)
+app.register_blueprint(music_bp)
 
 # Импорт сокетов
 from sockets import register_socket_handlers

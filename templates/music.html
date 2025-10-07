@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Музыка</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root{ --bg:#f0f2f5; --panel:#ffffff; --card:#f8f9fb; --muted:#6b7280; --text:#1f2937; --accent:#4a76a8; --danger:#e11d48; --table-border:#e5e7eb; }
+        .dark-theme { --bg:#0f172a; --panel:#111827; --card:#0b1220; --muted:#9ca3af; --text:#e5e7eb; --accent:#4a76a8; --danger:#e74c3c; --table-border:rgba(255,255,255,0.06); }
+        body{font-family:Segoe UI,Tahoma,Arial;background:var(--bg);color:var(--text);margin:0}
+        .app{display:flex;min-height:100vh}
+        .sidebar{width:280px;background:var(--panel);padding:25px;box-shadow:0 0 20px rgba(0,0,0,.4);position:fixed;height:100vh}
+        .profile-card{text-align:center;padding-bottom:25px;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:25px}
+        .profile-card img{width:90px;height:90px;border-radius:50%;object-fit:cover;border:3px solid var(--accent)}
+        .profile-card h3{margin:15px 0 5px;font-size:1.3rem}
+        .profile-card p{color:var(--muted);font-size:.9rem}
+        .nav a{display:flex;align-items:center;padding:14px 15px;text-decoration:none;color:var(--text);border-radius:8px;margin-bottom:8px}
+        .nav a i{margin-right:12px}
+        .nav a:hover{background:rgba(255,255,255,.06)}
+        .content{flex:1;margin-left:280px;padding:30px}
+        .wrap{max-width:980px;margin:0 auto}
+        .panel{background:var(--panel);border:1px solid var(--table-border);border-radius:12px;padding:16px}
+        .grid{display:grid;gap:10px}
+        .row{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--table-border);border-radius:10px;padding:10px}
+        .row .meta{display:flex;gap:10px;align-items:center}
+        .btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;text-decoration:none}
+        .btn-danger{background:var(--danger)}
+        input[type=text],input[type=file]{background:var(--card);color:var(--text);border:1px solid var(--table-border);border-radius:8px;padding:8px}
+
+        /* Кастомный аудиоплеер */
+        .player{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--table-border);border-radius:10px;padding:8px 10px}
+        .pbtn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+        .pbtn.secondary{background:transparent;color:var(--text);border:1px solid var(--table-border)}
+        .p-title{font-weight:600;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .p-time{font-size:12px;color:var(--muted);min-width:96px;text-align:right}
+        .p-progress{flex:1;display:flex;align-items:center}
+        .p-seek{appearance:none;-webkit-appearance:none;width:100%;height:6px;background:rgba(0,0,0,.15);border-radius:6px;outline:none;cursor:pointer}
+        .p-seek::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);border:none;margin-top:-3px}
+        .p-seek::-moz-range-thumb{width:12px;height:12px;border:none;border-radius:50%;background:var(--accent)}
+        .p-vol{width:90px}
+
+        /* Модалка жалобы */
+        .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:3000}
+        .modal{width:min(520px,94%);background:var(--panel);color:var(--text);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.35);border:1px solid var(--table-border)}
+        .modal-header{padding:12px 14px;border-bottom:1px solid var(--table-border);font-weight:700}
+        .modal-body{padding:14px}
+        .modal-footer{padding:12px 14px;border-top:1px solid var(--table-border);display:flex;gap:8px;justify-content:flex-end}
+        textarea{background:var(--card);color:var(--text);border:1px solid var(--table-border);border-radius:8px;padding:10px;width:100%;min-height:100px}
+
+        /* Кнопка переключения темы */
+        .theme-toggle{position:fixed;bottom:30px;right:30px;width:60px;height:60px;border-radius:50%;background:var(--accent);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 15px rgba(0,0,0,.2);z-index:1000;font-size:1.4rem}
+    </style>
+    <script>
+        // Тосты
+        function toast(msg){
+            let h = document.getElementById('toasts');
+            if (!h) { h = document.createElement('div'); h.id='toasts'; h.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:6000;display:flex;flex-direction:column;gap:8px;'; document.body.appendChild(h); }
+            const el = document.createElement('div');
+            el.style.cssText='background:var(--panel);color:var(--text);border:1px solid var(--table-border);box-shadow:0 8px 24px rgba(0,0,0,.2);padding:10px 14px;border-radius:10px;max-width:90vw;';
+            el.textContent = msg; h.appendChild(el); setTimeout(()=>el.remove(), 2500);
+        }
+
+        // Модалка жалобы
+        let reportTrackId = null;
+        function buildReportModal(){
+            const m = document.createElement('div'); m.className='modal-backdrop'; m.id='report-modal';
+            m.innerHTML = `
+                <div class="modal">
+                    <div class="modal-header">Жалоба на трек</div>
+                    <div class="modal-body">
+                        <div style="margin-bottom:6px;color:var(--muted)">Причина:</div>
+                        <textarea id="report-reason" placeholder="Например: нарушение авторских прав, оскорбления и т.д."></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="pbtn secondary" id="rep-cancel">Отмена</button>
+                        <button class="pbtn" id="rep-send">Отправить</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(m);
+        }
+        function openReportModal(id){
+            reportTrackId = id; document.getElementById('report-reason').value='';
+            document.getElementById('report-modal').style.display='flex';
+        }
+        async function sendReport(){
+            const reason = document.getElementById('report-reason').value.trim();
+            if(!reason){ toast('Введите причину'); return; }
+            const fd = new FormData(); fd.append('track_id', reportTrackId); fd.append('reason', reason);
+            const r = await fetch('/music/report', {method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'}});
+            const j = await r.json().catch(()=>({success:false}));
+            if (j && j.success){ toast('Жалоба отправлена'); document.getElementById('report-modal').style.display='none'; }
+            else { toast('Не удалось отправить жалобу'); }
+        }
+
+        // Кастомные плееры
+        function formatTime(s){ if(!isFinite(s)) return '0:00'; s=Math.floor(s); const m=Math.floor(s/60), ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
+        function initPlayers(){
+            document.querySelectorAll('.player').forEach(player=>{
+                const id = player.dataset.audioId;
+                const audio = document.getElementById(id);
+                const playBtn = player.querySelector('.pbtn.play');
+                const icon = playBtn.querySelector('i');
+                const cur = player.querySelector('.cur');
+                const dur = player.querySelector('.dur');
+                const seek = player.querySelector('.p-seek');
+                const vol = player.querySelector('.p-vol');
+                audio.addEventListener('loadedmetadata', ()=>{ dur.textContent = formatTime(audio.duration); });
+                audio.addEventListener('timeupdate', ()=>{
+                    cur.textContent = formatTime(audio.currentTime);
+                    const p = audio.duration ? (audio.currentTime / audio.duration) : 0;
+                    seek.value = Math.floor(p*1000);
+                });
+                playBtn.addEventListener('click', ()=>{
+                    // стопим другие
+                    document.querySelectorAll('audio').forEach(a=>{ if(a!==audio) a.pause(); });
+                    document.querySelectorAll('.player .pbtn.play i').forEach(i=>{ i.className='fas fa-play'; });
+                    if (audio.paused){ audio.play(); icon.className='fas fa-pause'; }
+                    else { audio.pause(); icon.className='fas fa-play'; }
+                });
+                seek.addEventListener('input', ()=>{
+                    const ratio = parseInt(seek.value,10)/1000;
+                    audio.currentTime = ratio * (audio.duration||0);
+                });
+                vol.addEventListener('input', ()=>{ audio.volume = parseFloat(vol.value); });
+            });
+        }
+    </script>
+    </head>
+<body>
+    <div class="app">
+        <div class="sidebar">
+            <div class="profile-card">
+                <img src="{{ url_for('static', filename='uploads/' + current_user.avatar) if current_user and current_user.avatar else url_for('static', filename='uploads/default_avatar.png') }}" alt="Avatar">
+                <h3>{{ current_user.username if current_user else 'Профиль' }}</h3>
+                <p>{{ current_user.bio if current_user else '' }}</p>
+            </div>
+            <div class="nav">
+                <a href="{{ url_for('feed.feed') }}"><i class="fas fa-newspaper"></i> Новости</a>
+                <a href="{{ url_for('profile.profile') }}"><i class="fas fa-user"></i> Профиль</a>
+                <a href="{{ url_for('gallery.gallery') }}"><i class="fas fa-images"></i> Фотографии</a>
+                <a href="{{ url_for('messages.messages') }}"><i class="fas fa-comments"></i> Сообщения</a>
+                <a href="{{ url_for('friends.friends') }}"><i class="fas fa-user-friends"></i> Друзья</a>
+                <a href="{{ url_for('music.music_index') }}" class="active"><i class="fas fa-music"></i> Музыка</a>
+                {% if current_user and current_user.role in ['admin','moderator'] %}
+                <a href="{{ url_for('admin.admin') }}"><i class="fas fa-cog"></i> Администрирование</a>
+                {% endif %}
+                <a href="{{ url_for('static.logout') }}"><i class="fas fa-sign-out-alt"></i> Выйти</a>
+            </div>
+        </div>
+        <div class="content">
+    <div class="wrap">
+        <h1>Музыка</h1>
+        <div class="panel" style="margin-bottom:12px;">
+            <form method="POST" action="{{ url_for('music.music_upload') }}" enctype="multipart/form-data" class="grid" style="grid-template-columns:1fr auto auto;">
+                <input type="text" name="title" placeholder="Название трека">
+                <input type="file" name="file" accept="audio/*">
+                <button class="btn" type="submit"><i class="fas fa-upload"></i> Загрузить</button>
+            </form>
+            <form method="POST" action="{{ url_for('music.playlist_create') }}" style="margin-top:10px; display:flex; gap:10px;">
+                <input type="text" name="title" placeholder="Новый плейлист">
+                <button class="btn" type="submit"><i class="fas fa-list"></i> Создать плейлист</button>
+            </form>
+        </div>
+        <div class="panel">
+            {% for t in tracks %}
+            <div class="row">
+                <div class="meta">
+                    <i class="fas fa-music"></i>
+                    <div>
+                        <div style="font-weight:600">{{ t['title'] or t['filename'] }}</div>
+                        <div style="font-size:12px;color:#9ca3af">Добавил: {{ t['username'] }} • {{ t['uploaded_at'] }}</div>
+                    </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+                    <div class="player" data-audio-id="track-{{ t['id'] }}">
+                        <button class="pbtn play"><i class="fas fa-play"></i></button>
+                        <div class="p-title">{{ t['title'] or t['filename'] }}</div>
+                        <div class="p-time"><span class="cur">0:00</span>/<span class="dur">0:00</span></div>
+                        <div class="p-progress"><input type="range" class="p-seek" min="0" max="1000" value="0"></div>
+                        <input class="p-vol" type="range" min="0" max="1" step="0.01" value="1">
+                        <button class="pbtn secondary" onclick="openReportModal({{ t['id'] }})"><i class="fas fa-flag"></i></button>
+                    </div>
+                    <audio id="track-{{ t['id'] }}" preload="metadata" src="{{ url_for('static', filename='music/' + t['filename']) }}"></audio>
+                </div>
+            </div>
+            {% else %}
+            <div style="color:#9ca3af">Треков пока нет</div>
+            {% endfor %}
+    </div>
+        </div>
+        <!-- Модалка жалобы -->
+        <div class="modal-backdrop" id="report-modal" style="display:none"></div>
+        <script>
+            // Построим модалку и инициализируем плееры после загрузки
+            (function(){
+                buildReportModal();
+                const modal = document.getElementById('report-modal');
+                modal.addEventListener('click', (e)=>{ if(e.target.id==='report-modal') modal.style.display='none'; });
+                document.addEventListener('click', (e)=>{
+                    if (e.target.id==='rep-cancel') modal.style.display='none';
+                    if (e.target.id==='rep-send') sendReport();
+                });
+                initPlayers();
+            })();
+        </script>
+    </div>
+</body>
+</html>
+
+

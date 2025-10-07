@@ -127,13 +127,14 @@
                 <a href="{{ url_for('friends.friends') }}" {% if active_page == 'friends' %}class="active"{% endif %}>
                     <i class="fas fa-user-friends"></i> Друзья
                 </a>
+                <a href="{{ url_for('music.music_index') }}">
+                    <i class="fas fa-music"></i> Музыка
+                </a>
                 {% if user[6] == 'admin' or user[6] == 'moderator' %}  <!-- Проверка на администратора -->
                 <a href="{{ url_for('admin.admin') }}" {% if active_page == 'admin' %}class="active"{% endif %}>
                     <i class="fas fa-cog"></i> Администрирование
                 </a>
-                <a href="{{ url_for('admin.reports_list') }}">
-                    <i class="fas fa-flag"></i> Жалобы
-                </a>
+                
                 {% endif %}
                 <a href="{{ url_for('static.logout') }}">
                     <i class="fas fa-sign-out-alt"></i> Выйти
@@ -313,6 +314,49 @@
                 </table>
                 {% else %}
                     <p style="color:var(--muted)">Нет открытых жалоб</p>
+                {% endif %}
+
+                <h3 style="margin-top:20px;">Жалобы на музыку</h3>
+                {% if music_reports %}
+                <table class="user-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Трек</th>
+                            <th>Причина</th>
+                            <th>Создана</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in music_reports %}
+                        <tr>
+                            <td>M-{{ r['id'] }}</td>
+                            <td>{{ r['title'] or r['filename'] }}</td>
+                            <td>{{ r['reason'] }}</td>
+                            <td>{{ r['created_at'] }}</td>
+                            <td class="action-buttons">
+                                <audio controls preload="none" src="{{ url_for('static', filename='music/' + r['filename']) }}" style="height:32px;"></audio>
+                                <form method="POST" action="{{ url_for('admin.resolve_report') }}" style="display:inline-flex; gap:8px;">
+                                    <input type="hidden" name="report_id" value="{{ r['id'] }}">
+                                    <input type="hidden" name="target_type" value="music">
+                                    <input type="hidden" name="target_id" value="{{ r['track_id'] }}">
+                                    <select name="action">
+                                        <option value="delete">Удалить</option>
+                                        <option value="ban">Заблокировать</option>
+                                        <option value="block">Навсегда</option>
+                                    </select>
+                                    <input type="number" name="ban_minutes" value="60" min="0" style="width:80px;">
+                                    <input type="text" name="ban_reason" placeholder="Причина">
+                                    <button type="submit" class="btn">Применить</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p style="color:var(--muted)">Нет открытых жалоб на музыку</p>
                 {% endif %}
             </div>
 

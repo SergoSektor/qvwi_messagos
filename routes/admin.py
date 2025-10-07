@@ -48,6 +48,12 @@ def admin():
     # Открытые жалобы для вкладки "Модерация контента"
     c.execute("SELECT id, target_type, target_id, reason, created_at FROM reports WHERE status='open' ORDER BY created_at DESC")
     reports = c.fetchall()
+
+    # Открытые жалобы на музыку
+    c.execute('''SELECT mr.id, mr.track_id, mr.reason, mr.created_at, m.title, m.filename, u.username
+                 FROM music_reports mr JOIN music m ON mr.track_id=m.id JOIN users u ON mr.reporter_id=u.id
+                 WHERE mr.status='open' ORDER BY mr.created_at DESC''')
+    music_reports = c.fetchall()
     
     conn.close()
     
@@ -59,7 +65,8 @@ def admin():
                            admins_count=admins_count,
                            users=users,
                            settings=settings,
-                           reports=reports)
+                           reports=reports,
+                           music_reports=music_reports)
 
 @bp.route('/delete_user/<int:user_id>', methods=['POST'])
 def delete_user(user_id):
@@ -195,6 +202,9 @@ def resolve_report():
     elif target_type == 'comment':
         c.execute('SELECT user_id FROM comments WHERE id=?', (target_id,))
         row = c.fetchone(); target_user_id = row['user_id'] if row else None
+    elif target_type == 'music':
+        c.execute('SELECT user_id FROM music WHERE id=?', (target_id,))
+        row = c.fetchone(); target_user_id = row['user_id'] if row else None
 
     # Удаление контента
     if action == 'delete':
@@ -202,6 +212,8 @@ def resolve_report():
             c.execute('DELETE FROM posts WHERE id=?', (target_id,))
         elif target_type == 'comment':
             c.execute('DELETE FROM comments WHERE id=?', (target_id,))
+        elif target_type == 'music':
+            c.execute('DELETE FROM music WHERE id=?', (target_id,))
         c.execute("INSERT INTO moderation_logs (report_id, moderator_id, action, target_type, target_id, details) VALUES (?,?,?,?,?,?)",
                   (report_id, moderator_id, 'delete', target_type, target_id, None))
 
