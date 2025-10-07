@@ -13,7 +13,10 @@ def init_db():
                 email TEXT,
                 bio TEXT,
                 avatar TEXT,
+                banner TEXT,
                 role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin', 'moderator', 'user')),
+                is_blocked BOOLEAN DEFAULT 0,
+                block_reason TEXT,
                 is_online BOOLEAN DEFAULT FALSE,
                 last_seen DATETIME)''')
     
@@ -30,6 +33,16 @@ def init_db():
     if 'last_seen' not in columns:
         c.execute("ALTER TABLE users ADD COLUMN last_seen DATETIME")
         c.execute("UPDATE users SET last_seen = datetime('now')")
+
+    # Добавляем баннер при отсутствии
+    if 'banner' not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN banner TEXT")
+
+    # Флаг блокировки
+    if 'is_blocked' not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN is_blocked BOOLEAN DEFAULT 0")
+    if 'block_reason' not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN block_reason TEXT")
     
     # Остальные таблицы без изменений
     c.execute('''CREATE TABLE IF NOT EXISTS friends (
@@ -56,6 +69,57 @@ def init_db():
                 content TEXT NOT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(user_id) REFERENCES users(id))''')
+
+    # Глобальные настройки (key/value)
+    c.execute('''CREATE TABLE IF NOT EXISTS settings (
+                 key TEXT PRIMARY KEY,
+                 value TEXT)''')
+    # Значения по умолчанию
+    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_mode', 'open')")
+    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('content_moderation', 'auto')")
+
+    # Коды приглашений для режима регистрации по приглашениям
+    c.execute('''CREATE TABLE IF NOT EXISTS invites (
+                 code TEXT PRIMARY KEY,
+                 uses_left INTEGER NOT NULL DEFAULT 1,
+                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+
+    # Лайки и комментарии к постам
+    c.execute('''CREATE TABLE IF NOT EXISTS likes (
+                 post_id INTEGER NOT NULL,
+                 user_id INTEGER NOT NULL,
+                 PRIMARY KEY (post_id, user_id),
+                 FOREIGN KEY(post_id) REFERENCES posts(id),
+                 FOREIGN KEY(user_id) REFERENCES users(id))''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS comments (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 post_id INTEGER NOT NULL,
+                 user_id INTEGER NOT NULL,
+                 content TEXT NOT NULL,
+                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                 FOREIGN KEY(post_id) REFERENCES posts(id),
+                 FOREIGN KEY(user_id) REFERENCES users(id))''')
+
+    # Жалобы
+    c.execute('''CREATE TABLE IF NOT EXISTS reports (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 reporter_id INTEGER NOT NULL,
+                 target_type TEXT NOT NULL CHECK(target_type IN ('post','comment','user')),
+                 target_id INTEGER NOT NULL,
+                 reason TEXT NOT NULL,
+                 status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved','rejected')),
+                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                 FOREIGN KEY(reporter_id) REFERENCES users(id))''')
+
+    # Временные блокировки
+    c.execute('''CREATE TABLE IF NOT EXISTS bans (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 user_id INTEGER NOT NULL,
+                 until DATETIME NOT NULL,
+                 reason TEXT,
+                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                 FOREIGN KEY(user_id) REFERENCES users(id))''')
     
     # Тестовые пользователи с ролями
     users = [

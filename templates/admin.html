@@ -6,31 +6,32 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; background: #f0f2f5; color: #333; }
+        :root { --bg:#f0f2f5; --panel:#ffffff; --card:#f8f9fb; --muted:#6b7280; --text:#1f2937; --accent:#4a76a8; --danger:#e11d48; --ok:#16a34a; --warning:#f59e0b; --table-border:#e5e7eb; --row-hover: rgba(0,0,0,0.04); }
+        .dark-theme { --bg:#0f172a; --panel:#111827; --card:#0b1220; --muted:#9ca3af; --text:#e5e7eb; --accent:#4a76a8; --danger:#e74c3c; --ok:#22c55e; --warning:#f59e0b; --table-border:rgba(255,255,255,0.06); --row-hover: rgba(255,255,255,0.04); }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; background: var(--bg); color: var(--text); }
         
         /* Боковая панель */
-        .sidebar { width: 280px; background: #fff; height: 100vh; position: fixed; padding: 25px; box-shadow: 0 0 15px rgba(0,0,0,0.05); }
-        .profile-card { text-align: center; padding-bottom: 25px; border-bottom: 1px solid #eaeaea; margin-bottom: 25px; }
-        .profile-card img { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid #4a76a8; }
+        .sidebar { width: 280px; background: var(--panel); height: 100vh; position: fixed; padding: 25px; box-shadow: 0 0 20px rgba(0,0,0,0.4); }
+        .profile-card { text-align: center; padding-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 25px; }
+        .profile-card img { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid var(--accent); }
         .profile-card h3 { margin: 15px 0 5px; font-size: 1.3rem; }
-        .profile-card p { color: #777; font-size: 0.9rem; }
+        .profile-card p { color: var(--muted); font-size: 0.9rem; }
         .nav { margin-top: 15px; }
-        .nav a { display: flex; align-items: center; padding: 14px 15px; text-decoration: none; color: #444; border-radius: 8px; margin-bottom: 8px; transition: all 0.2s; }
-        .nav a:hover { background: #f0f2f5; transform: translateX(3px); }
-        .nav a.active { background: #4a76a8; color: white; }
+        .nav a { display: flex; align-items: center; padding: 14px 15px; text-decoration: none; color: var(--text); border-radius: 8px; margin-bottom: 8px; transition: all 0.2s; }
+        .nav a:hover { background: rgba(255,255,255,0.06); transform: translateX(3px); }
+        .nav a.active { background: var(--accent); color: white; }
         .nav a i { margin-right: 12px; font-size: 1.2rem; }
         
         /* Основной контент */
         .content { flex: 1; margin-left: 280px; padding: 30px; }
-        
-        .admin-container { background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 3px 15px rgba(0,0,0,0.03); }
-        .admin-container h1 { margin-bottom: 25px; color: #2c3e50; }
+        .admin-container { background: var(--panel); padding: 30px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+        .admin-container h1 { margin-bottom: 25px; color: var(--text); }
         
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 25px; margin-bottom: 35px; }
-        .stat-card { background: #f8f9fa; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .stat-card i { font-size: 2.5rem; margin-bottom: 15px; color: #4a76a8; }
+        .stat-card { background: var(--card); padding: 25px; border-radius: 12px; text-align: center; box-shadow: inset 0 0 0 1px var(--table-border); }
+        .stat-card i { font-size: 2.5rem; margin-bottom: 15px; color: var(--accent); }
         .stat-card .number { font-size: 2.2rem; font-weight: 700; margin: 10px 0; }
-        .stat-card .label { color: #6c757d; font-size: 1.1rem; }
+        .stat-card .label { color: var(--muted); font-size: 1.1rem; }
         
         .admin-tabs { display: flex; border-bottom: 1px solid #dee2e6; margin-bottom: 25px; }
         .admin-tab { padding: 12px 25px; cursor: pointer; border-bottom: 3px solid transparent; }
@@ -40,14 +41,15 @@
         .tab-content.active { display: block; }
         
         .user-table { width: 100%; border-collapse: collapse; }
-        .user-table th, .user-table td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
-        .user-table th { background: #f8f9fa; font-weight: 600; color: #495057; }
-        .user-table tr:hover { background: #f8f9fa; }
+        .user-table th, .user-table td { padding: 15px; text-align: left; border-bottom: 1px solid var(--table-border); }
+        .user-table th { background: var(--card); font-weight: 600; color: var(--text); }
+        .user-table tr:hover { background: var(--row-hover); }
         
-        .action-buttons a { display: inline-block; padding: 8px 15px; margin-right: 10px; border-radius: 5px; text-decoration: none; font-size: 0.9rem; }
-        .btn-edit { background: #3498db; color: white; }
-        .btn-delete { background: #e74c3c; color: white; }
-        .btn-toggle-admin { background: #2ecc71; color: white; }
+        .action-buttons a, .action-buttons button { display: inline-flex; gap:8px; padding: 8px 14px; margin-right: 8px; border-radius: 8px; text-decoration: none; font-size: 0.92rem; border: none; cursor: pointer; align-items:center; justify-content:center; }
+        .btn { background: var(--accent); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-success { background: var(--ok); color: white; }
+        .btn-warning { background: var(--warning); color: #111827; }
         
         .admin-form .form-group { margin-bottom: 20px; }
         .admin-form label { display: block; font-weight: 600; margin-bottom: 8px; color: #2c3e50; }
@@ -57,8 +59,17 @@
         .admin-form button { background: #4a76a8; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; }
         
         .system-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; }
-        .control-card { background: #f8f9fa; padding: 25px; border-radius: 12px; }
-        .control-card h3 { margin-bottom: 15px; color: #2c3e50; }
+        .control-card { background: var(--card); padding: 25px; border-radius: 12px; }
+        .control-card h3 { margin-bottom: 15px; color: var(--text); }
+
+        /* Модалка причины блокировки */
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 3000; }
+        .modal { width: min(520px, 94%); background: var(--panel); color: var(--text); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.35); border: 1px solid var(--table-border); }
+        .modal-header { padding: 16px 18px; border-bottom: 1px solid var(--table-border); font-weight: 700; }
+        .modal-body { padding: 16px 18px; }
+        .modal-footer { padding: 14px 18px; border-top: 1px solid var(--table-border); display: flex; gap: 10px; justify-content: flex-end; }
+        .modal textarea { width: 100%; min-height: 100px; padding: 12px; border: 1px solid var(--table-border); border-radius: 8px; background: var(--card); color: var(--text); }
+        .modal input[type="text"], .modal input[type="email"] { width:100%; padding:12px; border:1px solid var(--table-border); border-radius:8px; background:var(--card); color:var(--text); }
 
         /* Переключатель темы */
         .theme-toggle {
@@ -120,6 +131,9 @@
                 <a href="{{ url_for('admin.admin') }}" {% if active_page == 'admin' %}class="active"{% endif %}>
                     <i class="fas fa-cog"></i> Администрирование
                 </a>
+                <a href="{{ url_for('admin.reports_list') }}">
+                    <i class="fas fa-flag"></i> Жалобы
+                </a>
                 {% endif %}
                 <a href="{{ url_for('static.logout') }}">
                     <i class="fas fa-sign-out-alt"></i> Выйти
@@ -168,8 +182,9 @@
                             <th>ID</th>
                             <th>Имя</th>
                             <th>Email</th>
-                            <th>Статус</th>
-                            <th>Регистрация</th>
+                            <th>Роль</th>
+                            <th>Онлайн</th>
+                            <th>Блокировка</th>
                             <th>Действия</th>
                         </tr>
                     </thead>
@@ -178,28 +193,48 @@
                         <tr>
                             <td>{{ u[0] }}</td>
                             <td>{{ u[1] }}</td>
-                            <td>{{ u[3] }}</td>
+                            <td>{{ u[2] }}</td>
                             <td>
-                                {% if u[6] == 'admin' %}
+                                {% if u[5] == 'admin' %}
                                     <span style="color: #2ecc71;">Администратор</span>
-                                {% elif u[6] == 'moderator' %}
+                                {% elif u[5] == 'moderator' %}
                                     <span style="color: #3498db;">Модератор</span>
                                 {% else %}
                                     Пользователь
                                 {% endif %}
                             </td>
-                            <td>{{ u[7] }}</td>
+                            <td>
+                                {% if u[6] %}
+                                    <span style="color:#2ecc71">Онлайн</span>
+                                {% else %}
+                                    <span title="{{ u[7] }}">Был(а): {{ u[7] }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if u[8] %}
+                                    <span style="color:#e74c3c">Заблокирован</span>
+                                {% else %}
+                                    Активен
+                                {% endif %}
+                            </td>
                             <td class="action-buttons">
-                                <a href="#" class="btn-edit">
+                                <button type="button" class="btn js-edit" data-user-id="{{ u[0] }}" data-username="{{ u[1] }}" data-email="{{ u[2] }}">
                                     <i class="fas fa-edit"></i> Редактировать
-                                </a>
-                                <a href="{{ url_for('admin.delete_user', user_id=u[0]) }}" class="btn-delete" onclick="return confirm('Вы уверены?')">
-                                    <i class="fas fa-trash"></i> Удалить
-                                </a>
-                                {% if u[6] != 'admin' %}
-                                <a href="{{ url_for('admin.make_admin', user_id=u[0]) }}" class="btn-toggle-admin">
-                                    <i class="fas fa-user-shield"></i> Сделать админом
-                                </a>
+                                </button>
+                                <form method="POST" action="{{ url_for('admin.delete_user', user_id=u[0]) }}" style="display:inline;" onsubmit="return confirm('Удалить пользователя?');">
+                                    <button type="submit" class="btn btn-danger"><i class="fas fa-trash"></i> Удалить</button>
+                                </form>
+                                {% if u[5] != 'admin' %}
+                                <form method="POST" action="{{ url_for('admin.make_admin', user_id=u[0]) }}" style="display:inline;">
+                                    <button type="submit" class="btn btn-success"><i class="fas fa-user-shield"></i> Сделать админом</button>
+                                </form>
+                                {% endif %}
+                                {% if u[8] %}
+                                    <form method="POST" action="{{ url_for('admin.toggle_block', user_id=u[0]) }}" style="display:inline;">
+                                        <button type="submit" class="btn btn-warning"><i class="fas fa-unlock"></i> Разблокировать</button>
+                                    </form>
+                                {% else %}
+                                    <button type="button" class="btn btn-warning js-open-block" data-user-id="{{ u[0] }}" data-username="{{ u[1] }}"><i class="fas fa-user-lock"></i> Заблокировать</button>
                                 {% endif %}
                             </td>
                         </tr>
@@ -213,38 +248,34 @@
                 <div class="system-controls">
                     <div class="control-card">
                         <h3>Общие настройки</h3>
-                        <form class="admin-form">
-                            <div class="form-group">
-                                <label>Название сайта</label>
-                                <input type="text" value="Социальная сеть">
-                            </div>
-                            <div class="form-group">
-                                <label>Описание сайта</label>
-                                <textarea>Лучшая социальная сеть для общения</textarea>
-                            </div>
-                            <button type="submit">Сохранить</button>
-                        </form>
-                    </div>
-                    
-                    <div class="control-card">
-                        <h3>Управление доступом</h3>
-                        <form class="admin-form">
+                        <form class="admin-form" method="POST" action="{{ url_for('admin.admin_settings') }}">
                             <div class="form-group">
                                 <label>Режим регистрации</label>
-                                <select>
-                                    <option>Открытая регистрация</option>
-                                    <option>Только по приглашению</option>
-                                    <option>Регистрация закрыта</option>
+                                <select name="registration_mode">
+                                    <option value="open" {{ 'selected' if settings.get('registration_mode') == 'open' else '' }}>Открытая регистрация</option>
+                                    <option value="invite" {{ 'selected' if settings.get('registration_mode') == 'invite' else '' }}>По приглашениям</option>
+                                    <option value="closed" {{ 'selected' if settings.get('registration_mode') == 'closed' else '' }}>Закрыта</option>
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label>Модерация контента</label>
-                                <select>
-                                    <option>Автоматическая</option>
-                                    <option>Ручная</option>
+                                <select name="content_moderation">
+                                    <option value="auto" {{ 'selected' if settings.get('content_moderation') == 'auto' else '' }}>Автоматическая</option>
+                                    <option value="manual" {{ 'selected' if settings.get('content_moderation') == 'manual' else '' }}>Ручная</option>
                                 </select>
                             </div>
-                            <button type="submit">Сохранить</button>
+                            <button type="submit" class="btn">Сохранить</button>
+                        </form>
+                    </div>
+                    
+                    <div class="control-card">
+                        <h3>Приглашения</h3>
+                        <form class="admin-form" method="POST" action="{{ url_for('admin.admin_invites') }}">
+                            <div class="form-group">
+                                <label>Сколько использований у кода?</label>
+                                <input type="number" name="uses" value="1" min="1">
+                            </div>
+                            <button type="submit" class="btn">Сгенерировать код приглашения</button>
                         </form>
                     </div>
                 </div>
@@ -252,46 +283,53 @@
             
             <div class="tab-content" id="moderation-tab">
                 <h2>Модерация контента</h2>
-                <div class="admin-form">
-                    <div class="form-group">
-                        <label>Поиск контента для модерации</label>
-                        <input type="text" placeholder="Введите ID поста или пользователя...">
-                    </div>
-                    <button type="submit">
-                        <i class="fas fa-search"></i> Найти
-                    </button>
-                </div>
-                
-                <h3>Последние жалобы</h3>
+                {% if reports %}
                 <table class="user-table">
                     <thead>
                         <tr>
                             <th>ID</th>
                             <th>Тип</th>
-                            <th>Содержание</th>
-                            <th>Автор</th>
-                            <th>Статус</th>
+                            <th>Цель</th>
+                            <th>Причина</th>
+                            <th>Создана</th>
                             <th>Действия</th>
                         </tr>
                     </thead>
                     <tbody>
+                        {% for r in reports %}
                         <tr>
-                            <td>#345</td>
-                            <td>Пост</td>
-                            <td>Некорректный контент...</td>
-                            <td>user123</td>
-                            <td><span style="color: #e67e22;">Ожидает</span></td>
-                            <td class="action-buttons">
-                                <a href="#" class="btn-edit">
-                                    <i class="fas fa-eye"></i> Просмотреть
-                                </a>
-                                <a href="#" class="btn-delete">
-                                    <i class="fas fa-ban"></i> Заблокировать
-                                </a>
+                            <td>{{ r[0] }}</td>
+                            <td>{{ r[1] }}</td>
+                            <td>{{ r[2] }}</td>
+                            <td>{{ r[3] }}</td>
+                            <td>{{ r[4] }}</td>
+                            <td>
+                                <form method="POST" action="{{ url_for('admin.resolve_report') }}" style="display:flex; gap:8px; align-items:center;">
+                                    <input type="hidden" name="report_id" value="{{ r[0] }}">
+                                    <input type="hidden" name="target_type" value="{{ r[1] }}">
+                                    <input type="hidden" name="target_id" value="{{ r[2] }}">
+                                    <select name="action" style="padding:6px 8px; border-radius:8px;">
+                                        <option value="delete">Удалить</option>
+                                        <option value="ban">Заблокировать</option>
+                                        <option value="block">Заблокировать навсегда</option>
+                                    </select>
+                                    <input type="number" name="ban_minutes" placeholder="мин" min="0" value="60" style="width:80px;">
+                                    <input type="text" name="ban_reason" placeholder="Причина блокировки" style="width:200px; padding:6px 8px; border-radius:8px;">
+                                    <label style="display:flex; align-items:center; gap:6px; color:var(--muted); font-size:0.9rem;">
+                                        <input type="checkbox" name="forever" value="1"> Навсегда
+                                    </label>
+                                    <button type="submit" class="btn">Применить</button>
+                                    <button type="button" class="btn btn-danger js-ban-delete" data-report="{{ r[0] }}" data-type="{{ r[1] }}" data-target="{{ r[2] }}">Заблокировать и удалить</button>
+                                    <button type="button" class="btn" onclick="openReport({{ r[0] }})">Открыть</button>
+                                </form>
                             </td>
                         </tr>
+                        {% endfor %}
                     </tbody>
                 </table>
+                {% else %}
+                    <p style="color:var(--muted)">Нет открытых жалоб</p>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -308,6 +346,223 @@
                 tab.classList.add('active');
                 document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
             });
+        });
+
+        // Инициализация темы (общая логика с index/theme.js)
+        (function(){
+            const saved = localStorage.getItem('theme') || 'light';
+            if (saved === 'dark') document.body.classList.add('dark-theme');
+        })();
+
+        // Модалка блокировки
+        const modalBackdrop = document.createElement('div');
+        modalBackdrop.className = 'modal-backdrop';
+        modalBackdrop.innerHTML = `
+            <div class="modal">
+                <div class="modal-header">Блокировка пользователя</div>
+                <div class="modal-body">
+                    <div style=\"margin-bottom:8px; color: var(--muted);\">Укажите причину блокировки для <span id=\"ban-user\"></span>:</div>
+                    <textarea id=\"ban-reason\" placeholder=\"Например: спам, оскорбления, публикация запрещённого контента\"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" id="ban-cancel">Отмена</button>
+                    <button type="button" class="btn btn-warning" id="ban-confirm">Заблокировать</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modalBackdrop);
+
+        // Модалка редактирования пользователя
+        const editModal = document.createElement('div');
+        editModal.className = 'modal-backdrop';
+        editModal.style.display = 'none';
+        editModal.innerHTML = `
+            <div class="modal">
+                <div class="modal-header">Редактировать пользователя</div>
+                <form class="modal-body" id="edit-form" method="POST">
+                    <div style=\"margin-bottom:8px; color: var(--muted);\">ID: <span id=\"edit-id\"></span></div>
+                    <div style=\"display:grid; gap:10px;\">
+                        <input type=\"text\" id=\"edit-username\" name=\"username\" placeholder=\"Имя пользователя\">
+                        <input type=\"email\" id=\"edit-email\" name=\"email\" placeholder=\"Email\">
+                    </div>
+                </form>
+                <div class="modal-footer">
+                    <button type="button" class="btn" id="edit-cancel">Отмена</button>
+                    <button type="button" class="btn" id="edit-save">Сохранить</button>
+                </div>
+            </div>`;
+        document.body.appendChild(editModal);
+
+        // Модалка предпросмотра тикета
+        const reportModal = document.createElement('div');
+        reportModal.className = 'modal-backdrop';
+        reportModal.style.display = 'none';
+        reportModal.innerHTML = `
+            <div class="modal" style="max-width:860px;">
+                <div class="modal-header">Тикет <span id="rep-id"></span></div>
+                <div class="modal-body">
+                    <div id="rep-content" style="display:flex; gap:12px; align-items:flex-start;"></div>
+                    <div style="margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <select id="rep-action">
+                            <option value="delete">Удалить</option>
+                            <option value="ban">Заблокировать</option>
+                            <option value="block">Заблокировать навсегда</option>
+                        </select>
+                        <input type="number" id="rep-min" value="60" min="0" placeholder="мин" style="width:90px;">
+                        <input type="text" id="rep-reason" placeholder="Причина блокировки" style="width:200px; padding:6px 8px; border-radius:8px;">
+                        <label style="display:flex; gap:6px; align-items:center; color:var(--muted);"><input type="checkbox" id="rep-forever" value="1"> Навсегда</label>
+                        <button class="btn" id="rep-apply">Применить</button>
+                        <button class="btn btn-danger" id="rep-apply-ban-delete">Заблокировать и удалить</button>
+                        <button class="btn" id="rep-close">Закрыть</button>
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(reportModal);
+
+        function renderTarget(t){
+            if (!t) return '<div style="color:var(--muted)">Цель отсутствует</div>';
+            const ava = t.avatar ? `/static/uploads/${t.avatar}` : `/static/uploads/default_avatar.png`;
+            const header = t.username ? `<div style="font-weight:700; color:#4a76a8">${t.username}</div>` : '';
+            const text = t.content ? `<div style="margin-top:6px;">${t.content}</div>` : '';
+            const time = t.timestamp ? `<div style="color:var(--muted); font-size:12px; margin-top:6px;">${t.timestamp}</div>` : '';
+            return `<img src="${ava}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;"> <div>${header}${text}${time}</div>`;
+        }
+        let currentReport = null;
+        async function openReport(id){
+            const res = await fetch(`/admin/report/${id}/json`);
+            const data = await res.json();
+            if (!data || !data.report){ toast('Не удалось загрузить тикет'); return; }
+            currentReport = data.report;
+            document.getElementById('rep-id').textContent = `#${currentReport.id}`;
+            document.getElementById('rep-content').innerHTML = renderTarget(data.target);
+            reportModal.style.display = 'flex';
+        }
+        document.addEventListener('click', async (e)=>{
+            if (e.target.id === 'rep-close') reportModal.style.display = 'none';
+            if (e.target.id === 'rep-apply' && currentReport){
+                const fd = new FormData();
+                fd.append('report_id', currentReport.id);
+                fd.append('target_type', currentReport.target_type);
+                fd.append('target_id', currentReport.target_id);
+                fd.append('action', document.getElementById('rep-action').value);
+                fd.append('ban_minutes', document.getElementById('rep-min').value);
+                fd.append('ban_reason', document.getElementById('rep-reason').value);
+                if (document.getElementById('rep-forever').checked) fd.append('forever','1');
+                const resp = await fetch('/admin/report/resolve', { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} });
+                const ans = await resp.json().catch(()=>({success:false}));
+                if (ans && ans.success){ toast('Жалоба обработана'); reportModal.style.display = 'none'; location.reload(); }
+                else toast('Не удалось применить действие');
+            }
+            if (e.target.id === 'rep-apply-ban-delete' && currentReport){
+                const fd = new FormData();
+                fd.append('report_id', currentReport.id);
+                fd.append('target_type', currentReport.target_type);
+                fd.append('target_id', currentReport.target_id);
+                // выбор навсегда или на время
+                const forever = document.getElementById('rep-forever').checked;
+                fd.append('action', forever ? 'block_delete' : 'ban_delete');
+                fd.append('ban_minutes', document.getElementById('rep-min').value);
+                fd.append('ban_reason', document.getElementById('rep-reason').value);
+                if (forever) fd.append('forever','1');
+                const resp = await fetch('/admin/report/resolve', { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} });
+                const ans = await resp.json().catch(()=>({success:false}));
+                if (ans && ans.success){ toast('Заблокирован и удалено'); reportModal.style.display = 'none'; location.reload(); }
+                else toast('Не удалось применить действие');
+            }
+        });
+
+        // Тост
+        function toast(msg){
+            let h = document.getElementById('toasts');
+            if (!h) { h = document.createElement('div'); h.id='toasts'; h.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:6000;display:flex;flex-direction:column;gap:8px;'; document.body.appendChild(h); }
+            const el = document.createElement('div');
+            el.style.cssText='background:var(--panel);color:var(--text);border:1px solid var(--table-border);box-shadow:0 8px 24px rgba(0,0,0,.2);padding:10px 14px;border-radius:10px;max-width:90vw;';
+            el.textContent = msg;
+            h.appendChild(el); setTimeout(()=>el.remove(), 3000);
+        }
+
+        // AJAX для модерации жалоб (форма в строке)
+        document.querySelectorAll('#moderation-tab form[action$="/admin/report/resolve"]').forEach(f => {
+            f.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const fd = new FormData(f);
+                const res = await fetch(f.action, { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} });
+                const data = await res.json().catch(()=>({success:false}));
+                if (data && data.success){
+                    // удалим строку из таблицы
+                    const tr = f.closest('tr');
+                    tr && tr.remove();
+                    toast('Жалоба обработана');
+                } else {
+                    toast('Не удалось применить действие');
+                }
+            });
+        });
+
+        // Кнопка "Заблокировать и удалить" в строке таблицы
+        document.querySelectorAll('#moderation-tab .js-ban-delete').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const tr = btn.closest('tr');
+                const reportId = btn.dataset.report;
+                const fd = new FormData();
+                fd.append('report_id', reportId);
+                fd.append('target_type', btn.dataset.type);
+                fd.append('target_id', btn.dataset.target);
+                // соберем соседние поля для времени/причины/навсегда
+                const form = btn.closest('form');
+                const minutes = form.querySelector('input[name="ban_minutes"]').value || '60';
+                const reason = form.querySelector('input[name="ban_reason"]').value || '';
+                const forever = form.querySelector('input[name="forever"]').checked;
+                fd.append('action', forever ? 'block_delete' : 'ban_delete');
+                fd.append('ban_minutes', minutes);
+                fd.append('ban_reason', reason);
+                if (forever) fd.append('forever','1');
+                const resp = await fetch('/admin/report/resolve', { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} });
+                const ans = await resp.json().catch(()=>({success:false}));
+                if (ans && ans.success){ tr && tr.remove(); toast('Заблокирован и удалено'); }
+                else toast('Не удалось применить действие');
+            });
+        });
+
+        let targetUserId = null;
+        document.querySelectorAll('.js-open-block').forEach(btn => {
+            btn.addEventListener('click', () => {
+                targetUserId = btn.dataset.userId;
+                document.getElementById('ban-user').textContent = btn.dataset.username || ('ID ' + targetUserId);
+                document.getElementById('ban-reason').value = '';
+                modalBackdrop.style.display = 'flex';
+            });
+        });
+        document.querySelectorAll('.js-edit').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.userId;
+                const name = btn.dataset.username || '';
+                const email = btn.dataset.email || '';
+                document.getElementById('edit-id').textContent = id;
+                document.getElementById('edit-username').value = name;
+                document.getElementById('edit-email').value = email;
+                const form = document.getElementById('edit-form');
+                form.action = `/admin/update_user/${id}`;
+                editModal.style.display = 'flex';
+            });
+        });
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'ban-cancel') modalBackdrop.style.display = 'none';
+            if (e.target.id === 'ban-confirm') {
+                if (!targetUserId) return;
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `/toggle_block/${targetUserId}`;
+                const input = document.createElement('input');
+                input.type = 'hidden'; input.name = 'reason';
+                input.value = document.getElementById('ban-reason').value || 'Нарушение правил сообщества';
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            }
+            if (e.target.id === 'edit-cancel') editModal.style.display = 'none';
+            if (e.target.id === 'edit-save') {
+                document.getElementById('edit-form').submit();
+            }
         });
     </script>
     <button class="theme-toggle" id="themeToggle">

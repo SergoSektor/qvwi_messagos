@@ -504,39 +504,27 @@
         }
         
         @media (max-width: 900px) {
-            .app-container {
-                flex-direction: column;
-            }
-            
-            .sidebar {
-                width: 100%;
-                height: auto;
-                position: relative;
-            }
-            
-            .content {
-                margin-left: 0;
-                padding: 20px;
-                flex-direction: column;
-            }
-            
-            .friends-list {
-                width: 100%;
-                height: 300px;
-                margin-right: 0;
-                margin-bottom: 20px;
-            }
-            
-            .chat-container {
-                height: calc(100vh - 400px);
-            }
-            
-            .theme-toggle {
-                bottom: 20px;
-                right: 20px;
-                width: 45px;
-                height: 45px;
-            }
+            .app-container { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; position: relative; padding: 15px; }
+            .content { margin-left: 0; padding: 12px; flex-direction: column; gap: 12px; }
+            .friends-list { width: 100%; height: 220px; margin: 0 0 12px 0; }
+            .chat-container { height: calc(100vh - 320px); }
+            .chat-header { padding: 12px; }
+            .chat-actions button { width: 40px; height: 40px; }
+            .chat-messages { padding: 12px; gap: 12px; }
+            .message { max-width: 90%; padding: 12px; }
+            .chat-input { position: sticky; bottom: 0; padding: 12px; background: var(--section-bg); }
+            .chat-input textarea { min-height: 44px; }
+            .theme-toggle { bottom: 16px; right: 16px; width: 44px; height: 44px; }
+        }
+
+        @media (max-width: 600px) {
+            .friends-list { height: 180px; }
+            .chat-container { height: calc(100vh - 280px); }
+            .profile-card { display:none; }
+            .nav a { padding: 10px 12px; }
+            .message { font-size: 0.95rem; }
+            .chat-actions { gap: 6px; }
         }
     </style>
 </head>
@@ -608,7 +596,7 @@
                     </div>
                     <div class="chat-info">
                         <h3>{{ active_friend[1] }}</h3>
-                        <p>
+                        <p id="peer-status-text">
                             {% if active_friend[6] %}
                                 онлайн
                             {% else %}
@@ -681,6 +669,7 @@
                     <i class="fas fa-redo"></i>
                 </button>
             </div>
+            <div id="call-quality" style="display:none; margin-top:10px; color: var(--text-secondary); font-size:0.95rem;"></div>
             <div id="device-row" style="margin-top:10px; display:flex; gap:10px; align-items:center; justify-content:center;">
                 <label for="mic-select" style="color:var(--text-secondary); font-size:0.9rem;">Микрофон:</label>
                 <select id="mic-select" style="padding:6px 10px; border:1px solid var(--border-color); border-radius:8px; background: var(--info-bg); color: var(--text-primary);"></select>
@@ -751,6 +740,7 @@
             const micSelect = document.getElementById('mic-select');
             const callError = document.getElementById('call-error');
             const callRetry = document.getElementById('call-retry');
+            const callQuality = document.getElementById('call-quality');
             const encryptBtn = document.getElementById('encrypt-btn');
             const selectModeBtn = document.getElementById('select-mode-btn');
             const copySelectedBtn = document.getElementById('copy-selected-btn');
@@ -769,6 +759,9 @@
             let cryptoKey = null;
             window.__receivedIds = new Set();
             let preferredMicId = localStorage.getItem('preferredMicId') || null;
+            let hasSentEndSignal = false;
+            // Активный собеседник для звонка (может отличаться при входящем из другой вкладки)
+            let callPeerId = friendId || null;
             // Perfect negotiation flags
             const polite = userId > friendId; // детерминированная вежливость
             let makingOffer = false;
@@ -779,6 +772,7 @@
             let roomJoined = false;
             let callInProgress = false;
             let hasConnected = false; // Соединение установлено хотя бы раз
+            let statsTimer = null;
 
             async function populateMicDevices() {
                 try {
@@ -819,6 +813,7 @@
                 // HTTPS проверка
                 if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
                     showCallError('Для доступа к микрофону требуется HTTPS. Откройте страницу по https://');
+                    throw new Error('insecure_context');
                 }
                 const baseAudio = preferredMicId ? { deviceId: { exact: preferredMicId } } : true;
                 const candidates = [
@@ -836,24 +831,53 @@
                     });
                 } catch (e) {}
 
+                // Снимем состояние разрешения, если доступно Permissions API
+                let micPermissionState = 'prompt';
+                try {
+                    if (navigator.permissions && navigator.permissions.query) {
+                        const pr = await navigator.permissions.query({ name: 'microphone' });
+                        micPermissionState = pr.state; // 'granted' | 'denied' | 'prompt'
+                    }
+                } catch(_e) {}
+
                 for (const constraints of candidates) {
                     try {
                         const stream = await navigator.mediaDevices.getUserMedia(constraints);
                         return stream;
                     } catch (e) {
-                        // Диагностика
+                        // Диагностика и попытки фолбэка
                         if (e.name === 'NotAllowedError') {
+                            const wantsVideo = !!constraints.video && constraints.video !== false;
+                            const wantsAudio = !!constraints.audio;
+                            // Если запрашивались и аудио, и видео — пробуем продолжить со следующими кандидатами (обычно audio-only)
+                            if (wantsVideo && wantsAudio) {
+                                continue;
+                            }
+                            // Если Permissions API не говорит 'denied' — пробуем общий запрос без deviceId (часто решает ложный NotAllowed)
+                            if (micPermissionState !== 'denied') {
+                                try {
+                                    const fallback = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                                    return fallback;
+                                } catch (_fallbackErr) {
+                                    // продолжим к следующему кандидату
+                                    continue;
+                                }
+                            }
+                            // Явный запрет
                             showCallError('Доступ к микрофону запрещён. Разрешите доступ в настройках сайта и попробуйте снова.');
                             socket.emit('call_error', { receiver_id: friendId, error: 'media permission denied', error_type: 'media_permission' });
                             break;
                         }
-                        if (e.name === 'OverconstrainedError' || e.name === 'NotReadableError') {
+                        if (e.name === 'OverconstrainedError' || e.name === 'NotReadableError' || e.name === 'NotFoundError' || e.name === 'AbortError') {
+                            // Переходим к следующему кандидату (другой микрофон/без видео и т.п.)
                             continue;
                         }
                         if (e.name === 'SecurityError') {
                             showCallError('Браузер блокирует доступ. Используйте https:// или localhost.');
                             break;
                         }
+                        // Неизвестная ошибка — попробуем следующий вариант
+                        continue;
                     }
                 }
                 throw new Error('Не удалось получить доступ к микрофону');
@@ -874,6 +898,10 @@
                             localStream.getAudioTracks().forEach(t => t.stop());
                             const vTracks = localStream.getVideoTracks();
                             localStream = new MediaStream([newAudioTrack, ...vTracks]);
+                            // Сохраняем текущее состояние mute при смене микрофона
+                            if (isMuted) {
+                                newAudioTrack.enabled = false;
+                            }
                         }
                     }
                 } catch (e) {
@@ -881,9 +909,10 @@
                 }
             });
             
-            // Шифрование AES-GCM (по паролю в localStorage per friendId)
+            // Шифрование AES-GCM (по паролю или по ECDH-ключу)
             async function getCryptoKey() {
                 if (cryptoKey) return cryptoKey;
+                if (e2eDerivedKey) { cryptoKey = e2eDerivedKey; return cryptoKey; }
                 const pass = localStorage.getItem(`enc_pass_${friendId}`) || '';
                 if (!pass) return null;
                 const enc = new TextEncoder();
@@ -938,6 +967,51 @@
                     }
                 });
             }
+
+            // Инициализация E2E (ECDH P-256) — автоматическое шифрование без пароля
+            async function initE2E() {
+                if (!friendId) return;
+                try {
+                    // Загружаем или создаем ключевую пару
+                    const storedPriv = localStorage.getItem('e2e_priv_p256');
+                    const storedPub = localStorage.getItem('e2e_pub_p256');
+                    if (!storedPriv || !storedPub) {
+                        const kp = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+                        e2ePrivateKey = kp.privateKey;
+                        e2ePublicKey = kp.publicKey;
+                        const pubJwk = await crypto.subtle.exportKey('jwk', e2ePublicKey);
+                        const privJwk = await crypto.subtle.exportKey('jwk', e2ePrivateKey);
+                        localStorage.setItem('e2e_pub_p256', JSON.stringify(pubJwk));
+                        localStorage.setItem('e2e_priv_p256', JSON.stringify(privJwk));
+                    } else {
+                        e2ePrivateKey = await crypto.subtle.importKey('jwk', JSON.parse(storedPriv), { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+                        e2ePublicKey = await crypto.subtle.importKey('jwk', JSON.parse(storedPub), { name: 'ECDH', namedCurve: 'P-256' }, true, []);
+                    }
+                    const myPub = JSON.parse(localStorage.getItem('e2e_pub_p256'));
+                    // Отправляем свой публичный ключ собеседнику
+                    socket.emit('e2e_pubkey', { receiver_id: friendId, pubkey: myPub });
+                    // Запрашиваем публичный ключ собеседника, если он уже известен серверу
+                    socket.emit('e2e_request_pubkey', { user_id: friendId });
+                } catch(e) { /* ignore */ }
+            }
+
+            socket.on('e2e_peer_pubkey', async (data) => {
+                if (data.sender_id !== friendId) return;
+                try {
+                    const peerPubKey = await crypto.subtle.importKey('jwk', data.pubkey, { name: 'ECDH', namedCurve: 'P-256' }, true, []);
+                    // Вычисляем общий секрет и выводим AES-GCM ключ
+                    e2eDerivedKey = await crypto.subtle.deriveKey(
+                        { name: 'ECDH', public: peerPubKey },
+                        e2ePrivateKey,
+                        { name: 'AES-GCM', length: 256 },
+                        false,
+                        ['encrypt', 'decrypt']
+                    );
+                    cryptoKey = e2eDerivedKey;
+                    encryptEnabled = true;
+                    if (encryptBtn) encryptBtn.innerHTML = '<i class="fas fa-lock"></i>';
+                } catch(e) { /* ignore */ }
+            });
             
             // Конфигурация STUN/TURN серверов
             const pcConfig = {
@@ -1080,6 +1154,8 @@
             
             // Загрузка истории сообщений
             if (friendId) {
+                // Пытаемся инициализировать E2E без пароля
+                initE2E();
                 fetch(`/api/messages/${friendId}`)
                     .then(response => response.json())
                     .then(data => {
@@ -1124,7 +1200,26 @@
                 const file = this.files[0];
                 
                 if (file.size > 15 * 1024 * 1024) {
-                    alert('Файл слишком большой. Максимальный размер: 15 МБ');
+                    // Показать модалку об ошибке
+                    const modal = document.createElement('div');
+                    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:5000';
+                    modal.innerHTML = `<div style="width:min(520px,94%);background:var(--section-bg);color:var(--text-primary);border-radius:12px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.35)">
+                        <h3 style="margin:0 0 8px 0">Файл слишком большой</h3>
+                        <div style="color:var(--text-secondary);margin-bottom:12px">Максимальный размер: 15 МБ. Попробовать сжать и отправить?</div>
+                        <div style="text-align:right;display:flex;gap:8px;justify-content:flex-end">
+                            <button id="zip-cancel" style="padding:10px 12px;border:none;border-radius:8px">Отмена</button>
+                            <button id="zip-ok" style="padding:10px 12px;border:none;border-radius:8px;background:#4a76a8;color:#fff">Сжать и отправить</button>
+                        </div>
+                    </div>`;
+                    document.body.appendChild(modal);
+                    document.getElementById('zip-cancel').onclick = ()=>{ document.body.removeChild(modal); };
+                    document.getElementById('zip-ok').onclick = async ()=>{
+                        try {
+                            const zipped = await zipFile(file);
+                            await uploadZipped(zipped, file.name + '.zip');
+                        } catch(e) { alert('Не удалось сжать файл'); }
+                        document.body.removeChild(modal);
+                    };
                     this.value = '';
                     return;
                 }
@@ -1160,14 +1255,9 @@
                         stub.className = 'message sent';
                         stub.innerHTML = `<div class="message-file"><i class=\"fas fa-paperclip\"></i> ${file.name}</div><div class=\"message-time\">${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} <i class=\"fas fa-check-double\" style=\"margin-left:5px;\"></i></div>`;
                         chatMessages && chatMessages.appendChild(stub);
-                    } else {
-                        alert('Ошибка загрузки файла: ' + (data.error || 'Неизвестная ошибка'));
-                    }
+                    } else { showToast('Ошибка загрузки файла: ' + (data.error || 'Неизвестная ошибка')); }
                 })
-                .catch(error => {
-                    console.error('Ошибка:', error);
-                    alert('Ошибка при загрузке файла');
-                })
+                .catch(error => { console.error('Ошибка:', error); showToast('Ошибка при загрузке файла'); })
                 .finally(() => {
                     // Восстанавливаем кнопку
                     sendButton.innerHTML = originalButtonText;
@@ -1178,6 +1268,37 @@
                 });
             }
         });
+
+        async function zipFile(file){
+            // fflate через UMD: подключим один раз
+            if (!window.fflate) {
+                await new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = 'https://cdn.jsdelivr.net/npm/fflate@0.8.0/umd/index.min.js';
+                    s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+                });
+            }
+            const arrayBuf = await file.arrayBuffer();
+            const data = { [file.name]: new Uint8Array(arrayBuf) };
+            const zipped = fflate.zipSync(data, { level: 6 });
+            return new File([zipped], file.name.replace(/\.+$/, '') + '.zip', { type: 'application/zip' });
+        }
+        async function uploadZipped(file, displayName){
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('receiver_id', friendId);
+            formData.append('content', messageInput.value);
+            const resp = await fetch('/upload_message_file', { method: 'POST', body: formData });
+            if (!resp.ok) { showToast('Ошибка при загрузке файла'); return; }
+            const data = await resp.json();
+            if (!data.success) { showToast('Ошибка: ' + (data.error||'Неизвестная')); return; }
+            // Показать заглушку
+            const stub = document.createElement('div');
+            stub.className = 'message sent';
+            stub.innerHTML = `<div class="message-file"><i class="fas fa-paperclip"></i> ${displayName}</div><div class="message-time">${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} <i class=\"fas fa-check-double\" style=\"margin-left:5px;\"></i></div>`;
+            chatMessages && chatMessages.appendChild(stub);
+            setTimeout(scrollToBottom, 300);
+        }
             
             // Прокрутка вниз
             function scrollToBottom() {
@@ -1196,11 +1317,14 @@
             async function startCall(withVideo) {
                 if (callInProgress) return;
                 callInProgress = true;
+                hasSentEndSignal = false;
                 // Дождёмся подключения сокета и входа в комнату
                 let guard = 0;
                 while (!(socketReady && roomJoined) && guard < 50) { await new Promise(r=>setTimeout(r,100)); guard++; }
                 try {
                     isCaller = true;
+                    // Фиксируем собеседника для звонка
+                    callPeerId = friendId || callPeerId;
                     if (callStatus && callModal) {
                         callStatus.textContent = 'Звонок...';
                         callModal.style.display = 'flex';
@@ -1240,7 +1364,10 @@
                     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
                 }
                 peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) socket.emit('webrtc_ice_candidate', { candidate: event.candidate, receiver_id: friendId });
+                    if (event.candidate) {
+                        const targetPeer = callPeerId || friendId;
+                        if (targetPeer) socket.emit('webrtc_ice_candidate', { candidate: event.candidate, receiver_id: targetPeer });
+                    }
                 };
                 peerConnection.onconnectionstatechange = () => {
                     const st = peerConnection.connectionState;
@@ -1271,7 +1398,8 @@
                         makingOffer = true;
                         const offer = await peerConnection.createOffer();
                         await peerConnection.setLocalDescription(offer);
-                        socket.emit('webrtc_offer', { offer: peerConnection.localDescription, receiver_id: friendId });
+                        const targetPeer = callPeerId || friendId;
+                        if (targetPeer) socket.emit('webrtc_offer', { offer: peerConnection.localDescription, receiver_id: targetPeer });
                     } catch (e) {
                         console.error('negotiation error', e);
                     } finally {
@@ -1283,6 +1411,7 @@
             // Принять звонок
             callAccept && callAccept.addEventListener('click', async () => {
                 try {
+                    hasSentEndSignal = false;
                     if (callStatus) callStatus.textContent = 'Подключение...';
                     if (callAccept) callAccept.style.display = 'none';
                     if (callDecline) callDecline.style.display = 'none';
@@ -1290,6 +1419,8 @@
                     if (muteBtn) muteBtn.style.display = 'inline-flex';
                     await populateMicDevices();
                     localStream = await getLocalStream(false);
+                    // Обновим callPeerId на случай, если входящий из другого чата
+                    callPeerId = friendId || callPeerId;
                     if (peerConnection) localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
                     // Ответ будет создан в обработчике offer (perfect negotiation)
                 } catch (error) {
@@ -1300,8 +1431,20 @@
             });
             
             // Отклонить/закончить звонок
-            callDecline && callDecline.addEventListener('click', endCall);
-            callEnd && callEnd.addEventListener('click', endCall);
+            callDecline && callDecline.addEventListener('click', () => {
+                if (!hasSentEndSignal) {
+                    socket.emit('webrtc_end_call', { receiver_id: friendId, reason: 'declined' });
+                    hasSentEndSignal = true;
+                }
+                endCall();
+            });
+            callEnd && callEnd.addEventListener('click', () => {
+                if (!hasSentEndSignal) {
+                    socket.emit('webrtc_end_call', { receiver_id: friendId, reason: 'ended' });
+                    hasSentEndSignal = true;
+                }
+                endCall();
+            });
             callRetry && callRetry.addEventListener('click', async () => {
                 clearCallError();
                 if (callRetry) callRetry.style.display = 'none';
@@ -1312,7 +1455,8 @@
                     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
                     const offer = await peerConnection.createOffer();
                     await peerConnection.setLocalDescription(offer);
-                    socket.emit('webrtc_offer', { offer: peerConnection.localDescription, receiver_id: friendId });
+                    const targetPeer = callPeerId || friendId;
+                    if (targetPeer) socket.emit('webrtc_offer', { offer: peerConnection.localDescription, receiver_id: targetPeer });
                 } catch (e) {
                     showCallError('Не удалось получить доступ к микрофону. Исправьте разрешения и повторите.');
                     if (callRetry) callRetry.style.display = 'inline-flex';
@@ -1326,6 +1470,7 @@
                     clearInterval(callTimerInterval);
                     callTimerInterval = null;
                 }
+                if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
                 
                 // Сбрасываем отображение таймера
                 callTimer.style.display = 'none';
@@ -1349,12 +1494,13 @@
                 isMuted = false;
                 muteBtn.innerHTML = '<i class="fas fa-microphone"></i>';
                 muteBtn.style.display = 'none';
+                if (callQuality) { callQuality.style.display = 'none'; callQuality.textContent = ''; }
                 
-                // Отправляем событие завершения звонка
-                if (isCaller) {
-                    socket.emit('webrtc_end_call', {
-                        receiver_id: friendId
-                    });
+                // Отправляем событие завершения звонка (гарантированно один раз)
+                const targetPeer = callPeerId || friendId;
+                if (!hasSentEndSignal && targetPeer) {
+                    socket.emit('webrtc_end_call', { receiver_id: targetPeer, reason: 'ended' });
+                    hasSentEndSignal = true;
                 }
             }
             // Запуск таймера звонка
@@ -1371,11 +1517,49 @@
                     
                     callTimer.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
                 }, 1000);
+
+                // Запускаем монитор качества связи
+                if (callQuality) callQuality.style.display = 'block';
+                if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
+                statsTimer = setInterval(async () => {
+                    try {
+                        if (!peerConnection) return;
+                        const stats = await peerConnection.getStats();
+                        let rttMs = null, jitterMs = null, bitrateKbps = null, packetsLost = 0, packetsSent = 0;
+                        let bytesSent = 0, prevBytesSent = callTimer.__bytesSent || 0, prevTs = callTimer.__bytesTs || 0;
+                        let ts = Date.now();
+                        stats.forEach(report => {
+                            if (report.type === 'outbound-rtp' && report.kind === 'audio') {
+                                rttMs = report.roundTripTime ? Math.round(report.roundTripTime * 1000) : rttMs;
+                                packetsLost += report.packetsLost || 0;
+                                packetsSent += report.packetsSent || 0;
+                                bytesSent += report.bytesSent || 0;
+                            }
+                            if (report.type === 'remote-inbound-rtp' && report.kind === 'audio') {
+                                rttMs = report.roundTripTime ? Math.round(report.roundTripTime * 1000) : rttMs;
+                                jitterMs = report.jitter ? Math.round(report.jitter * 1000) : jitterMs;
+                                packetsLost += report.packetsLost || 0;
+                            }
+                        });
+                        if (prevTs > 0 && bytesSent >= prevBytesSent) {
+                            const deltaBytes = bytesSent - prevBytesSent;
+                            const deltaMs = ts - prevTs;
+                            bitrateKbps = Math.round((deltaBytes * 8) / deltaMs);
+                        }
+                        callTimer.__bytesSent = bytesSent;
+                        callTimer.__bytesTs = ts;
+                        const lossPct = packetsSent > 0 ? Math.round((packetsLost / (packetsSent + packetsLost)) * 100) : 0;
+                        const rttStr = rttMs != null ? `${rttMs} ms` : '—';
+                        const jitStr = jitterMs != null ? `${jitterMs} ms` : '—';
+                        const brStr = bitrateKbps != null ? `${bitrateKbps} kbps` : '—';
+                        callQuality.textContent = `Качество: RTT ${rttStr}, джиттер ${jitStr}, битрейт ${brStr}, потери ~${lossPct}%`;
+                    } catch(e) { /* ignore */ }
+                }, 1500);
             }
             
             // Обработчики WebRTC событий от сервера
             
-            // Получение предложения о звонке
+            // Получение предложения о звонке (базовая логика входящего)
             socket.on('webrtc_offer', async (data) => {
                 if (data.sender_id === friendId) {
                     const offerCollision = (makingOffer || peerConnection.signalingState !== 'stable');
@@ -1385,6 +1569,8 @@
                     try {
                         isSettingRemoteAnswerPending = (data.offer.type === 'answer');
                         await peerConnection.setRemoteDescription(data.offer);
+                        // Сохраняем фактического собеседника входящего звонка
+                        callPeerId = data.sender_id;
                         if (data.offer.type === 'offer') {
                             if (!localStream) {
                                 await populateMicDevices();
@@ -1393,7 +1579,8 @@
                             }
                             const answer = await peerConnection.createAnswer();
                             await peerConnection.setLocalDescription(answer);
-                            socket.emit('webrtc_answer', { answer: peerConnection.localDescription, receiver_id: friendId });
+                            const targetPeer = callPeerId || friendId;
+                            if (targetPeer) socket.emit('webrtc_answer', { answer: peerConnection.localDescription, receiver_id: targetPeer });
                         }
                     } catch (e) {
                         console.error('handle offer error', e);
@@ -1415,36 +1602,34 @@
             
             // Получение ответа на звонок
             socket.on('webrtc_answer', async (data) => {
-                if (data.sender_id === friendId) {
-                    try {
-                        await peerConnection.setRemoteDescription(data.answer);
-                    } catch (e) {
-                        console.error('setRemoteDescription(answer) error', e);
-                    }
+                // Примем answer независимо от активного чата
+                try {
+                    await peerConnection.setRemoteDescription(data.answer);
+                } catch (e) {
+                    console.error('setRemoteDescription(answer) error', e);
                 }
             });
             
             // Получение ICE кандидата
             socket.on('webrtc_ice_candidate', async (data) => {
-                if (data.sender_id === friendId) {
+                // Принимаем кандидатов независимо от открытого диалога
+                if (!peerConnection) return;
                     try {
                         await peerConnection.addIceCandidate(data.candidate);
                     } catch (error) {
                         console.error('Ошибка добавления ICE кандидата:', error);
                     }
-                }
             });
             
             // Получение сигнала о завершении звонка
             socket.on('webrtc_end_call', (data) => {
-                if (data.sender_id === friendId) {
-                    if (!hasConnected) {
+                if (callPeerId && data.sender_id !== callPeerId) return;
+                if (!hasConnected) {
                         // До установления звонка не закрываем окно — даём шанс перезвонить
                         showCallError(data.reason || 'Собеседник недоступен.');
                         if (callRetry) callRetry.style.display = 'inline-flex';
-                    } else {
-                        endCall();
-                    }
+                } else {
+                    endCall();
                 }
             });
 
@@ -1454,7 +1639,8 @@
                 isMuted = !isMuted;
                 localStream.getAudioTracks().forEach(track => track.enabled = !isMuted);
                 muteBtn.innerHTML = isMuted ? '<i class="fas fa-microphone-slash"></i>' : '<i class="fas fa-microphone"></i>';
-                socket.emit('webrtc_toggle_mute', { receiver_id: friendId, muted: isMuted });
+                const targetPeer = callPeerId || friendId;
+                if (targetPeer) socket.emit('webrtc_toggle_mute', { receiver_id: targetPeer, muted: isMuted });
             });
 
             // Прием статуса mute от собеседника
@@ -1474,7 +1660,50 @@
                 // Здесь можно отобразить тост/бейджик
                 console.log('Уведомление:', n);
             });
+
+            // Блокировка аккаунта в реальном времени
+            socket.on('account_blocked', (data) => {
+                const r = (data && data.reason) || 'Профиль заблокирован администратором';
+                window.location.href = `/blocked?reason=${encodeURIComponent(r)}`;
+            });
+            socket.on('account_unblocked', () => {
+                // Можно показать уведомление или перезагрузить
+            });
+
+            // Онлайн-статус собеседника
+            socket.on('user_status', (s) => {
+                if (s.user_id === friendId) {
+                    const st = document.getElementById('peer-status-text');
+                    const badge = document.querySelector('.chat-status');
+                    if (s.is_online) {
+                        st && (st.textContent = 'онлайн');
+                        badge && badge.classList.add('chat-status-online');
+                    } else {
+                        const t = new Date(s.last_seen);
+                        const hh = t.getHours().toString().padStart(2,'0');
+                        const mm = t.getMinutes().toString().padStart(2,'0');
+                        st && (st.textContent = `был(а) ${hh}:${mm}`);
+                        badge && badge.classList.remove('chat-status-online');
+                    }
+                }
+            });
         });
+
+        // Тост вместо системного alert
+        function showToast(msg){
+            let holder = document.getElementById('toasts');
+            if (!holder) {
+                holder = document.createElement('div');
+                holder.id = 'toasts';
+                holder.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:6000;display:flex;flex-direction:column;gap:8px;';
+                document.body.appendChild(holder);
+            }
+            const el = document.createElement('div');
+            el.style.cssText = 'background:var(--section-bg);color:var(--text-primary);border:1px solid var(--border-color);box-shadow:0 8px 24px rgba(0,0,0,.2);padding:10px 14px;border-radius:10px;max-width:90vw;';
+            el.textContent = msg;
+            holder.appendChild(el);
+            setTimeout(()=>{ el.remove(); }, 3500);
+        }
     </script>
 </body>
 </html>

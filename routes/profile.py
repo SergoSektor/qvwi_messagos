@@ -26,6 +26,7 @@ def profile(user_id):
     if request.method == 'POST' and is_own_profile:
         bio = request.form.get('bio', '')
         avatar = request.files.get('avatar')
+        banner = request.files.get('banner')
 
         update_fields = []
         update_values = []
@@ -41,6 +42,13 @@ def profile(user_id):
             update_fields.append("avatar = ?")
             update_values.append(filename)
 
+        if banner and allowed_file(banner.filename, Config.ALLOWED_EXTENSIONS):
+            banner_name = secure_filename(f"{user_id}_banner_{banner.filename}")
+            banner_path = os.path.join(Config.UPLOAD_FOLDER, banner_name)
+            banner.save(banner_path)
+            update_fields.append("banner = ?")
+            update_values.append(banner_name)
+
         if update_fields:
             update_query = ", ".join(update_fields)
             update_values.append(user_id)
@@ -49,7 +57,7 @@ def profile(user_id):
             flash('Профиль успешно обновлен!', 'success')
 
     # Получаем данные пользователя
-    c.execute("SELECT id, username, email, bio, avatar FROM users WHERE id = ?", (user_id,))
+    c.execute("SELECT id, username, email, bio, avatar, banner, is_online, last_seen, is_blocked, block_reason FROM users WHERE id = ?", (user_id,))
     user = c.fetchone()
     
     # Если пользователь не найден
@@ -64,7 +72,12 @@ def profile(user_id):
         'username': user[1],
         'email': user[2],
         'bio': user[3],
-        'avatar': user[4]
+        'avatar': user[4],
+        'banner': user[5],
+        'is_online': bool(user[6]),
+        'last_seen': user[7],
+        'is_blocked': bool(user[8]),
+        'block_reason': user[9]
     }
 
     # Получаем посты пользователя

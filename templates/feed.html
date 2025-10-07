@@ -5,6 +5,20 @@
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        @media (max-width: 900px) {
+            .sidebar { width: 100%; height: auto; position: relative; padding: 15px; }
+            .content { margin-left: 0; padding: 12px; }
+            .create-post textarea { min-height: 90px; }
+            .post { padding: 12px; }
+            .post-header img { width: 40px; height: 40px; }
+        }
+        @media (max-width: 600px) {
+            .profile-card { display:none; }
+            .nav a { padding: 10px 12px; }
+            .post-actions button { padding: 8px 10px; }
+        }
+    </style>
 </head>
 <body>
     <div class="sidebar">
@@ -71,9 +85,71 @@
                         <i class="fas fa-trash"></i> Удалить
                     </button>
                     {% endif %}
-                    <button><i class="fas fa-thumbs-up"></i> Нравится</button>
-                    <button><i class="fas fa-comment"></i> Комментировать</button>
-                    <button><i class="fas fa-share"></i> Поделиться</button>
+                    <form method="POST" action="{{ url_for('feed.unlike_post' if post['liked'] else 'feed.like_post', post_id=post[0]) }}" style="display:inline;">
+                        <button type="submit">
+                            <i class="fas fa-thumbs-{{ 'down' if post['liked'] else 'up' }}"></i>
+                            {{ 'Убрать лайк' if post['liked'] else 'Нравится' }} ({{ post['likes_count'] or 0 }})
+                        </button>
+                    </form>
+                    <button type="button" onclick="toggleComment('{{ post[0] }}')"><i class="fas fa-comment"></i> Комментировать ({{ post['comments_count'] or 0 }})</button>
+                    <div style="margin-left:auto; position:relative;">
+                        <div class="dropdown" style="position:relative;">
+                            <button type="button" onclick="toggleMenu(this)" style="border:none;background:transparent;color:#4a76a8;cursor:pointer"><i class="fas fa-ellipsis-h"></i></button>
+                            <div class="menu" style="display:none; position:absolute; right:0; background:#fff; border:1px solid #ddd; border-radius:8px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,.15);">
+                                <form method="POST" action="{{ url_for('admin.create_report') }}" style="display:grid;">
+                                    <input type="hidden" name="target_type" value="post">
+                                    <input type="hidden" name="target_id" value="{{ post[0] }}">
+                                    <button type="submit" name="reason" value="Спам" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: Спам</button>
+                                    <button type="submit" name="reason" value="Оскорбления" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: Оскорбления</button>
+                                    <button type="submit" name="reason" value="Насилие/ненависть" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: Насилие/ненависть</button>
+                                    <button type="submit" name="reason" value="18+ контент" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: 18+ контент</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="comment-box-{{ post[0] }}" style="display:none; margin-top:10px;">
+                    {% set comments = comments_by_post.get(post[0]) %}
+                    {% if comments %}
+                    <div style="margin-bottom:10px; display:flex; flex-direction:column; gap:8px;">
+                        {% for c in comments %}
+                        <div style="display:flex; gap:10px; align-items:flex-start; position:relative;">
+                            <img src="{{ url_for('static', filename='uploads/' + c.avatar) if c.avatar else url_for('static', filename='uploads/default_avatar.png') }}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;">
+                            <div style="background:#eef2f7; padding:8px 10px; border-radius:10px; flex:1;">
+                                <div style="font-weight:600; color:#4a76a8;">{{ c.username }}</div>
+                                <div style="color:#333;">{{ c.content }}</div>
+                                <div style="color:#6b7280; font-size:12px; margin-top:4px;">{{ c.timestamp }}</div>
+                            </div>
+                            <div style="position:absolute; right:0; top:-6px;">
+                                <div class="dropdown" style="position:relative;">
+                                    <button type="button" onclick="toggleMenu(this)" style="border:none;background:transparent;color:#4a76a8;cursor:pointer"><i class="fas fa-ellipsis-h"></i></button>
+                                    <div class="menu" style="display:none; position:absolute; right:0; background:#fff; border:1px solid #ddd; border-radius:8px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,.15);">
+                                        {% if c.user_id == session['user_id'] %}
+                                        <form method="POST" action="{{ url_for('feed.delete_comment', comment_id=c.id) }}">
+                                            <button type="submit" style="padding:8px 12px; width:100%; border:none; background:#fff; cursor:pointer;">Удалить</button>
+                                        </form>
+                                        {% endif %}
+                                        <form method="POST" action="{{ url_for('admin.create_report') }}" style="display:grid;">
+                                            <input type="hidden" name="target_type" value="comment">
+                                            <input type="hidden" name="target_id" value="{{ c.id }}">
+                                            <button type="submit" name="reason" value="Спам" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: Спам</button>
+                                            <button type="submit" name="reason" value="Оскорбления" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: Оскорбления</button>
+                                            <button type="submit" name="reason" value="Насилие/ненависть" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: Насилие/ненависть</button>
+                                            <button type="submit" name="reason" value="18+ контент" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: 18+ контент</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('feed.add_comment', post_id=post[0]) }}">
+                        <textarea name="comment" placeholder="Ваш комментарий" required style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;"></textarea>
+                        <div style="margin-top:8px; text-align:right;">
+                            <button type="submit" class="delete-btn" style="background:#4a76a8;">Отправить</button>
+                        </div>
+                    </form>
                 </div>
             </div>
             {% endfor %}
@@ -91,5 +167,19 @@
         <i class="fas fa-moon"></i>
     </button>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script>
+        function toggleComment(id){
+            const el = document.getElementById('comment-box-'+id);
+            if (el) el.style.display = (el.style.display==='none' || !el.style.display) ? 'block' : 'none';
+        }
+        function toggleMenu(btn){
+            const menu = btn.parentElement.querySelector('.menu');
+            if (!menu) return;
+            menu.style.display = (menu.style.display==='block') ? 'none' : 'block';
+            document.addEventListener('click', function handler(e){
+                if (!btn.parentElement.contains(e.target)) { menu.style.display='none'; document.removeEventListener('click', handler); }
+            });
+        }
+    </script>
 </body>
 </html>

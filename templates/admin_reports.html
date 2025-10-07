@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Жалобы</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body{font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;background:#0f172a;color:#e5e7eb;padding:20px}
+        table{width:100%;border-collapse:collapse}
+        th,td{padding:12px;border-bottom:1px solid rgba(255,255,255,.08)}
+        a.btn{display:inline-block;padding:8px 12px;background:#4a76a8;color:#fff;border-radius:8px;text-decoration:none}
+    </style>
+</head>
+<body>
+    <h2>Открытые жалобы</h2>
+    <table>
+        <thead><tr><th>ID</th><th>Тип</th><th>Цель</th><th>Причина</th><th>Создана</th><th></th></tr></thead>
+        <tbody>
+            {% for r in reports %}
+            <tr>
+                <td>{{ r.id }}</td>
+                <td>{{ r.target_type }}</td>
+                <td>{{ r.target_id }}</td>
+                <td>{{ r.reason }}</td>
+                <td>{{ r.created_at }}</td>
+                <td><a class="btn" href="/admin/report/{{ r.id }}">Открыть</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
+
+

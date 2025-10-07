@@ -1,6 +1,6 @@
 import signal
 import sys
-from flask import Flask
+from flask import Flask, session, request, redirect, url_for, render_template
 from flask_socketio import SocketIO
 from config import Config
 from models import init_db
@@ -64,10 +64,26 @@ from sockets import register_socket_handlers
 register_socket_handlers(socketio)
 
 def datetimeformat(value, format='%d.%m.%Y %H:%M'):
-    if isinstance(value, str):
-        # Преобразуем строку из БД в объект datetime
-        value = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
-    return value.strftime(format)
+    if not value:
+        return ''
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        s = str(value)
+        dt = None
+        # Попытки распарсить разные форматы (с/без микросекунд, ISO с 'T')
+        for fmt in ('%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S'):
+            try:
+                dt = datetime.strptime(s, fmt)
+                break
+            except ValueError:
+                pass
+        if dt is None:
+            try:
+                dt = datetime.fromisoformat(s)
+            except Exception:
+                return s
+    return dt.strftime(format)
 
 app.jinja_env.filters['datetimeformat'] = datetimeformat  # Регистрируем фильтр
 
@@ -77,6 +93,30 @@ app.jinja_env.globals.update(
     TURN_USERNAME=Config.TURN_USERNAME,
     TURN_PASSWORD=Config.TURN_PASSWORD
 )
+
+# Глобальная защита: заблокированный пользователь всегда видит страницу блокировки
+@app.before_request
+def enforce_account_block():
+    try:
+        # Исключения: статика, сокеты, страница блокировки и корневой индекс
+        if request.path.startswith('/static') or request.path.startswith('/socket.io'):
+            return None
+        if request.endpoint in {'auth.blocked', 'auth.index', 'static.static_files'}:
+            return None
+        if 'user_id' not in session:
+            return None
+        from models import get_db
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('SELECT is_blocked, block_reason FROM users WHERE id = ?', (session['user_id'],))
+        row = c.fetchone()
+        conn.close()
+        if row and row['is_blocked']:
+            reason = row['block_reason'] or 'Профиль заблокирован администратором'
+            return render_template('blocked.html', reason=reason)
+    except Exception:
+        # Не препятствуем работе при ошибках проверки
+        return None
 
 def generate_self_signed_cert():
     """Генерация самоподписанного SSL сертификата"""

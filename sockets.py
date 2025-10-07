@@ -7,6 +7,7 @@ import threading
 import logging
 from config import Config
 from werkzeug.utils import secure_filename
+from datetime import datetime
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -16,6 +17,16 @@ logger = logging.getLogger(__name__)
 typing_status = {}
 pending_calls = {}  # Для хранения входящих вызовов
 active_calls = {}   # Для отслеживания активных звонков
+socketio_ref = None  # Глобальная ссылка на socketio
+
+def emit_to_user(event: str, data: dict, user_id: int):
+    """Эмит события конкретному пользователю из других модулей."""
+    try:
+        if socketio_ref is not None:
+            socketio_ref.emit(event, data, room=str(user_id))
+    except Exception:
+        logger.exception("emit_to_user failed")
+user_pubkeys = {}   # Для хранения публичных ключей E2E по user_id
 
 def register_socket_handlers(socketio):
     @socketio.on('connect')
@@ -26,6 +37,24 @@ def register_socket_handlers(socketio):
             join_room(str(user_id))
             logger.info(f"User {user_id} connected")
             emit('connection_response', {'status': 'connected'})
+
+            # Обновляем онлайн-статус и last_seen
+            try:
+                conn = get_db()
+                c = conn.cursor()
+                c.execute("UPDATE users SET is_online = 1, last_seen = ? WHERE id = ?", (datetime.now(), user_id))
+                conn.commit()
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            # Широковещательный статус
+            emit('user_status', {
+                'user_id': user_id,
+                'is_online': True,
+                'last_seen': datetime.now().isoformat()
+            }, broadcast=True)
 
     @socketio.on('disconnect')
     def handle_disconnect():
@@ -45,6 +74,24 @@ def register_socket_handlers(socketio):
                     }, room=str(other_user))
                     del active_calls[call_id]
                     logger.info(f"Call {call_id} ended due to user disconnect")
+
+            # Обновляем оффлайн-статус и last_seen
+            try:
+                conn = get_db()
+                c = conn.cursor()
+                c.execute("UPDATE users SET is_online = 0, last_seen = ? WHERE id = ?", (datetime.now(), user_id))
+                conn.commit()
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            # Широковещательный статус
+            emit('user_status', {
+                'user_id': user_id,
+                'is_online': False,
+                'last_seen': datetime.now().isoformat()
+            }, broadcast=True)
 
     @socketio.on('join_chat')
     def handle_join_chat(data):
@@ -196,6 +243,32 @@ def register_socket_handlers(socketio):
     cleanup_thread = threading.Thread(target=start_cleanup_thread)
     cleanup_thread.daemon = True
     cleanup_thread.start()
+    # Авторазбан по истечению срока
+    def start_bans_thread():
+        while True:
+            try:
+                conn = get_db(); c = conn.cursor()
+                now = datetime.now()
+                c.execute("SELECT id, user_id FROM bans WHERE until <= ?", (now,))
+                rows = c.fetchall()
+                for row in rows:
+                    uid = row['user_id']
+                    # снимаем блокировку
+                    c.execute("UPDATE users SET is_blocked=0, block_reason=NULL WHERE id=?", (uid,))
+                    c.execute("DELETE FROM bans WHERE id=?", (row['id'],))
+                    conn.commit()
+                    # уведомляем пользователя, если онлайн
+                    emit_to_user('account_unblocked', {}, uid)
+                conn.close()
+            except Exception:
+                logger.exception('bans cleanup failed')
+            finally:
+                import time as _t; _t.sleep(60)
+    bans_thread = threading.Thread(target=start_bans_thread)
+    bans_thread.daemon = True
+    bans_thread.start()
+    global socketio_ref
+    socketio_ref = socketio
     
     # WebRTC обработчики для звонков
     @socketio.on('call_request')
@@ -422,6 +495,41 @@ def register_socket_handlers(socketio):
                 if call_id in pending_calls:
                     del pending_calls[call_id]
                     logger.info(f"Pending call {call_id} removed")
+
+    # E2E: обмен публичными ключами (ECDH)
+    @socketio.on('e2e_pubkey')
+    def handle_e2e_pubkey(data):
+        """Получаем публичный ключ отправителя и отдаем получателю"""
+        if 'user_id' not in session:
+            return
+        sender_id = session['user_id']
+        receiver_id = data.get('receiver_id')
+        pubkey = data.get('pubkey')
+        if not receiver_id or not pubkey:
+            return
+        # Сохраняем последний публичный ключ пользователя
+        user_pubkeys[sender_id] = pubkey
+        # Пересылаем ключ собеседнику
+        emit('e2e_peer_pubkey', {
+            'sender_id': sender_id,
+            'pubkey': pubkey
+        }, room=str(receiver_id))
+
+    @socketio.on('e2e_request_pubkey')
+    def handle_e2e_request_pubkey(data):
+        """По запросу отправляем известный публичный ключ пользователя"""
+        if 'user_id' not in session:
+            return
+        requester_id = session['user_id']
+        target_user_id = data.get('user_id')
+        if not target_user_id:
+            return
+        pubkey = user_pubkeys.get(target_user_id)
+        if pubkey:
+            emit('e2e_peer_pubkey', {
+                'sender_id': target_user_id,
+                'pubkey': pubkey
+            }, room=str(requester_id))
 
     # Событие mute/unmute микрофона
     @socketio.on('webrtc_toggle_mute')

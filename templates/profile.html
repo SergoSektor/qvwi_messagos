@@ -142,6 +142,14 @@
             position: relative;
             overflow: hidden;
         }
+        .profile-banner {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            background-position: center;
+            background-size: cover;
+            opacity: 0.25;
+        }
         
         .profile-header::before {
             content: "";
@@ -432,34 +440,21 @@
         }
         
         @media (max-width: 900px) {
-            .app-container {
-                flex-direction: column;
-            }
-            
-            .sidebar {
-                width: 100%;
-                height: auto;
-                position: relative;
-            }
-            
-            .content {
-                margin-left: 0;
-                padding: 20px;
-            }
-            
-            .profile-header {
-                flex-direction: column;
-                text-align: center;
-            }
-            
-            .profile-avatar {
-                margin-right: 0;
-                margin-bottom: 20px;
-            }
-            
-            .profile-stats {
-                justify-content: center;
-            }
+            .app-container { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; position: relative; padding: 15px; }
+            .content { margin-left: 0; padding: 12px; }
+            .profile-header { flex-direction: column; text-align: center; padding: 18px; }
+            .profile-avatar { margin-right: 0; margin-bottom: 16px; }
+            .profile-avatar img { width: 96px; height: 96px; }
+            .profile-info h1 { font-size: 1.6rem; }
+            .info-grid { grid-template-columns: 1fr; }
+            .section { padding: 16px; }
+        }
+
+        @media (max-width: 600px) {
+            .nav a { padding: 10px 12px; }
+            .profile-header { padding: 14px; }
+            .edit-form textarea { height: 100px; }
         }
     </style>
 </head>
@@ -514,6 +509,9 @@
             
             <!-- Шапка профиля -->
             <div class="profile-header">
+                {% if user.banner %}
+                <div class="profile-banner" style="background-image: url('{{ url_for('static', filename='uploads/' + user.banner) }}');"></div>
+                {% endif %}
                 <div class="profile-avatar">
                     <img src="{{ url_for('static', filename='uploads/' + user.avatar) if user.avatar else url_for('static', filename='uploads/default_avatar.png') }}" 
                          alt="Avatar"
@@ -531,6 +529,20 @@
                 <div class="profile-info">
                     <h1>{{ user.username }}</h1>
                     <p>{{ user.bio or 'Пользователь социальной сети' }}</p>
+                    <p style="margin-top:6px; font-size:0.95rem;">
+                        {% if user.is_blocked %}
+                            <span style="color:#e74c3c"><i class="fas fa-user-lock"></i> Профиль заблокирован</span>
+                            {% if user.block_reason %}
+                                <span style="display:block; color:#ffb4b4; margin-top:4px;">Причина: {{ user.block_reason }}</span>
+                            {% endif %}
+                        {% else %}
+                            {% if user.is_online %}
+                                <span style="color:#2ecc71"><i class="fas fa-circle"></i> онлайн</span>
+                            {% else %}
+                                <span style="color:#999"><i class="fas fa-clock"></i> был(а) {{ user.last_seen | datetimeformat }}</span>
+                            {% endif %}
+                        {% endif %}
+                    </p>
                     
                     <div class="profile-stats">
                         <div class="stat-item">
@@ -596,6 +608,18 @@
                                 Текущий аватар: {{ user.avatar }}
                             {% else %}
                                 Аватар не установлен
+                            {% endif %}
+                        </p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="banner-file">Баннер (статичный или GIF):</label>
+                        <input type="file" id="banner-file" name="banner" accept="image/*">
+                        <p style="margin-top: 8px; font-size: 14px; color: var(--text-secondary);">
+                            {% if user.banner %}
+                                Текущий баннер: {{ user.banner }}
+                            {% else %}
+                                Баннер не установлен
                             {% endif %}
                         </p>
                     </div>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Тикет жалобы</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body{font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;background:#0f172a;color:#e5e7eb;padding:20px}
+        .card{background:#111827;border-radius:12px;padding:20px;max-width:900px;margin:0 auto;border:1px solid rgba(255,255,255,.06)}
+        .row{display:flex;gap:16px}
+        .col{flex:1}
+        .actions{display:flex;gap:8px;margin-top:12px}
+        input,select,textarea,button{border-radius:8px;border:1px solid rgba(255,255,255,.12);padding:10px;background:#0b1220;color:#e5e7eb}
+        button{cursor:pointer}
+        .badge{display:inline-block;background:#374151;padding:4px 8px;border-radius:8px;font-size:12px;margin-left:8px}
+    </style>
+    </head>
+<body>
+    <div class="card">
+        <h2>Жалоба #{{ report.id }} <span class="badge">{{ report.target_type }}</span></h2>
+        <p>Причина: {{ report.reason }}</p>
+        <hr style="border-color:rgba(255,255,255,.08)">
+        <div>
+            {% if report.target_type=='post' %}
+                <h3>Пост #{{ target.id }}</h3>
+                <p>{{ target.content }}</p>
+            {% elif report.target_type=='comment' %}
+                <h3>Комментарий #{{ target.id }}</h3>
+                <p>{{ target.content }}</p>
+            {% elif report.target_type=='user' %}
+                <h3>Пользователь #{{ target[0] }}</h3>
+                <p>{{ target[1] }}</p>
+            {% endif %}
+        </div>
+        <form method="POST" style="margin-top:16px;">
+            <input type="hidden" name="target_type" value="{{ report.target_type }}">
+            <input type="hidden" name="target_id" value="{{ report.target_id }}">
+            <div class="row">
+                <div class="col">
+                    <label>Действие</label>
+                    <select name="action">
+                        <option value="delete">Удалить</option>
+                        <option value="ban">Заблокировать</option>
+                    </select>
+                </div>
+                <div class="col">
+                    <label>Срок блокировки (мин.)</label>
+                    <input type="number" name="ban_minutes" min="0" value="60">
+                </div>
+            </div>
+            <div class="actions">
+                <button type="submit"><i class="fas fa-check"></i> Применить</button>
+                <a href="/admin/reports" style="text-decoration:none"><button type="button">Назад</button></a>
+            </div>
+        </form>
+    </div>
+</body>
+</html>
+
+

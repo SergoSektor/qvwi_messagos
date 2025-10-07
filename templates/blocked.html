@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Доступ ограничен</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <style>
+        :root { --bg:#0f172a; --card:#111827; --text:#e5e7eb; --muted:#9ca3af; --accent:#ef4444; }
+        body { margin:0; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: radial-gradient(1200px 600px at 50% -20%, #1f2937 10%, #0b1220 60%, #050a16 100%); color:var(--text); min-height:100vh; display:flex; align-items:center; justify-content:center; }
+        .card { width: min(640px, 92%); background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border: 1px solid rgba(255,255,255,0.08); border-radius:16px; padding:28px; box-shadow: 0 20px 60px rgba(0,0,0,0.45); backdrop-filter: blur(6px); }
+        .title { display:flex; align-items:center; gap:12px; font-size:1.4rem; font-weight:700; margin:0 0 10px 0; }
+        .reason { color:var(--muted); margin:6px 0 14px 0; line-height:1.5; }
+        .badge { display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:10px; background:#7f1d1d; color:#fecaca; font-size:0.9rem; margin-bottom:10px; }
+        .reason-box { margin-top:10px; padding:12px 14px; border-radius:10px; background:#0c1426; border:1px solid rgba(255,255,255,0.08); color:#f9dada; }
+        .actions { display:flex; gap:10px; margin-top:14px; }
+        .btn { border:none; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; }
+        .btn-primary { background:#ef4444; color:white; }
+        .btn-secondary { background:#1f2937; color:#e5e7eb; border:1px solid rgba(255,255,255,0.08); }
+        small { color:var(--muted); }
+        @media (max-width:600px){ .card{ padding:20px; } }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="badge"><span>🚫</span> Доступ к аккаунту ограничен</div>
+        <h1 class="title">Ваш профиль заблокирован</h1>
+        <div class="reason-box">
+            <strong>Причина блокировки:</strong>
+            <div class="reason">{{ reason or 'Нарушение правил сообщества' }}</div>
+        </div>
+        <div class="actions">
+            <form method="get" action="/">
+                <button class="btn btn-secondary" type="submit">Вернуться на главную</button>
+            </form>
+            <a class="btn btn-primary" href="mailto:support@example.com">Связаться с поддержкой</a>
+        </div>
+        <p><small>Если вы считаете, что это ошибка, напишите в поддержку.</small></p>
+    </div>
+</body>
+</html>
+
