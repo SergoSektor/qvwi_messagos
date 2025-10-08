@@ -235,6 +235,23 @@
             background: #ccc;
             border: 2px solid var(--section-bg);
         }
+
+        /* Индикатор заглушенного микрофона у собеседника */
+        .chat-avatar .mic-muted {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #e74c3c;
+            color: #fff;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid var(--section-bg);
+        }
+        .chat-avatar .mic-muted i{ font-size: 10px; }
         
         .chat-status.chat-status-online {
             background: #2ecc71;
@@ -301,6 +318,7 @@
         .message-file{ display:flex; align-items:center; gap:8px; }
         .message-file i{ color:#76a9ff; }
         .message-time{ font-size: 12px; opacity:.75; margin-top:4px; text-align:right; color:#cbd5e1; }
+        .cipher{ opacity:.8; font-style: italic; }
         
         /* Стороны: свои справа, собеседник слева */
         .sent { 
@@ -317,7 +335,7 @@
             margin-right: auto; 
             margin-left: 6px;
             background: var(--received-message); 
-            color: var(--text-primary); 
+            color: var(--text-primary);
             border-bottom-left-radius: 5px; 
         }
         
@@ -510,6 +528,16 @@
             margin: 15px 0;
             color: var(--text-primary);
         }
+
+        /* Модалка ввода пароля шифрования */
+        .enc-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:2500}
+        .enc-modal{width:min(420px,94%);background:var(--section-bg);color:var(--text-primary);border:1px solid var(--border-color);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden}
+        .enc-header{padding:14px 16px;border-bottom:1px solid var(--border-color);font-weight:700}
+        .enc-body{padding:16px}
+        .enc-body input{width:100%;padding:12px;border:1px solid var(--border-color);border-radius:8px;background:var(--info-bg);color:var(--text-primary)}
+        .enc-footer{padding:12px 16px;border-top:1px solid var(--border-color);display:flex;gap:8px;justify-content:flex-end}
+        .btn-primary{background:var(--active-color);color:#fff;border:none;padding:10px 14px;border-radius:8px;cursor:pointer}
+        .btn-secondary{background:transparent;color:var(--text-primary);border:1px solid var(--border-color);padding:10px 14px;border-radius:8px;cursor:pointer}
         
         @media (max-width: 1200px) {
             .content {
@@ -623,6 +651,7 @@
                              alt="Аватар {{ active_friend[1] }}"
                              onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
                         <div class="chat-status {% if active_friend[6] %}chat-status-online{% endif %}"></div>
+                        <div class="mic-muted" id="peer-mic-muted" title="Микрофон выключен"><i class="fas fa-microphone-slash"></i></div>
                     </div>
                     <div class="chat-info">
                         <h3>{{ active_friend[1] }}</h3>
@@ -646,7 +675,11 @@
                 <div class="chat-messages" id="chat-messages">
                     {% for msg in messages %}
                     <div class="message {% if msg[1] == session['user_id'] %}sent{% else %}received{% endif %}">
+                        {% if msg[3] and msg[3][:4] == 'enc:' %}
+                        <div class="message-text cipher">Сообщение расшифровывается…</div>
+                        {% else %}
                         <div class="message-text">{{ msg[3] }}</div>
+                        {% endif %}
                         <div class="message-time">{{ msg[4] }}</div>
                     </div>
                     {% endfor %}
@@ -710,6 +743,21 @@
                 Собеседник выключил микрофон
             </div>
             <div id="call-error" style="display:none; margin-top:10px; color:#e74c3c; font-size:0.95rem;"></div>
+        </div>
+    </div>
+
+    <!-- Модалка пароля шифрования -->
+    <div class="enc-backdrop" id="enc-modal" role="dialog" aria-modal="true">
+        <div class="enc-modal">
+            <div class="enc-header">Шифрование диалога</div>
+            <div class="enc-body">
+                <div style="margin-bottom:8px;color:var(--text-secondary)">Введите пароль для расшифровки сообщений</div>
+                <input type="password" id="enc-pass" placeholder="Пароль" autocomplete="off">
+            </div>
+            <div class="enc-footer">
+                <button class="btn-secondary" id="enc-cancel">Отмена</button>
+                <button class="btn-primary" id="enc-ok">OK</button>
+            </div>
         </div>
     </div>
 
@@ -805,9 +853,16 @@
             let callInProgress = false;
             let hasConnected = false; // Соединение установлено хотя бы раз
             let statsTimer = null;
-            // Сохраняем входящее предложение до нажатия «Принять»
+            // Ожидающее предложение и отправитель (до нажатия «Принять»)
             let pendingOffer = null;
             let pendingOfferSender = null;
+            // Хелпер: мусорные одиночные имена файлов из ранней логики — скрываем
+            function looksLikeFilename(s){
+                if (!s || typeof s !== 'string') return false;
+                const t = s.trim();
+                if (t === '' || t.toLowerCase() === 'none') return true;
+                return /\d+_\d+_[\w\-.]+\.(jpg|jpeg|png|gif|webp|mp3|mp4|wav|csv|zip|webm)$/i.test(t);
+            }
 
             async function populateMicDevices() {
                 try {
@@ -985,20 +1040,61 @@
                 } catch(e) { return null; }
             }
 
+            // Очередь на повторную расшифровку (когда ключи ещё не готовы)
+            const pendingDecrypt = [];
+            async function attemptDecryptInto(el, ciphertext){
+                const dec = await tryDecryptText(ciphertext);
+                if (dec !== null){ el.textContent = dec; el.dataset.decoded = '1'; return true; }
+                // запросим ключ и попробуем позже
+                if (friendId) socket.emit('e2e_request_pubkey', { user_id: friendId });
+                pendingDecrypt.push({ el, ciphertext });
+                return false;
+            }
+
             if (encryptBtn) {
+                // UI модалка
+                const encBackdrop = document.getElementById('enc-modal');
+                const encOk = document.getElementById('enc-ok');
+                const encCancel = document.getElementById('enc-cancel');
+                const encInput = document.getElementById('enc-pass');
+
+                function openEncModal(){ encBackdrop.style.display = 'flex'; encInput.value=''; encInput.focus(); }
+                function closeEncModal(){ encBackdrop.style.display = 'none'; }
+
+                encCancel?.addEventListener('click', closeEncModal);
+                encOk?.addEventListener('click', async ()=>{
+                    const pass = encInput.value.trim(); if (!pass) return;
+                        localStorage.setItem(`enc_pass_${friendId}`, pass);
+                    cryptoKey = null; await getCryptoKey(); encryptEnabled = true;
+                        encryptBtn.innerHTML = '<i class="fas fa-lock"></i>';
+                    closeEncModal();
+                });
+
                 encryptBtn.addEventListener('click', async () => {
                     if (!friendId) return;
-                    if (!encryptEnabled) {
-                        const pass = prompt('Введите пароль шифрования для этого диалога');
-                        if (!pass) return;
-                        localStorage.setItem(`enc_pass_${friendId}`, pass);
-                        cryptoKey = null;
-                        await getCryptoKey();
-                        encryptEnabled = true;
-                        encryptBtn.innerHTML = '<i class="fas fa-lock"></i>';
+                    // Без пароля: просто включаем E2E и обмениваемся ключами
+                    encryptEnabled = !encryptEnabled;
+                    encryptBtn.innerHTML = encryptEnabled ? '<i class="fas fa-lock"></i>' : '<i class="fas fa-lock-open"></i>';
+                    if (encryptEnabled){
+                        // Если ключей ещё нет — сгенерируем и попросим ключ у собеседника
+                        try {
+                            const storedPriv = localStorage.getItem('e2e_priv_p256');
+                            const storedPub = localStorage.getItem('e2e_pub_p256');
+                            if (!storedPriv || !storedPub) {
+                                const kp = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+                                e2ePrivateKey = kp.privateKey; e2ePublicKey = kp.publicKey;
+                                const pubJwk = await crypto.subtle.exportKey('jwk', e2ePublicKey);
+                                const privJwk = await crypto.subtle.exportKey('jwk', e2ePrivateKey);
+                                localStorage.setItem('e2e_pub_p256', JSON.stringify(pubJwk));
+                                localStorage.setItem('e2e_priv_p256', JSON.stringify(privJwk));
                     } else {
-                        encryptEnabled = false;
-                        encryptBtn.innerHTML = '<i class="fas fa-lock-open"></i>';
+                                e2ePrivateKey = await crypto.subtle.importKey('jwk', JSON.parse(storedPriv), { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+                                e2ePublicKey = await crypto.subtle.importKey('jwk', JSON.parse(storedPub), { name: 'ECDH', namedCurve: 'P-256' }, true, []);
+                            }
+                            const myPub = JSON.parse(localStorage.getItem('e2e_pub_p256'));
+                            socket.emit('e2e_pubkey', { receiver_id: friendId, pubkey: myPub });
+                            socket.emit('e2e_request_pubkey', { user_id: friendId });
+                        } catch(_e) {}
                     }
                 });
             }
@@ -1045,6 +1141,11 @@
                     cryptoKey = e2eDerivedKey;
                     encryptEnabled = true;
                     if (encryptBtn) encryptBtn.innerHTML = '<i class="fas fa-lock"></i>';
+                    // повторим расшифровку для ожидающих
+                    if (pendingDecrypt.length){
+                        const items = pendingDecrypt.splice(0, pendingDecrypt.length);
+                        for (const it of items){ await attemptDecryptInto(it.el, it.ciphertext); }
+                    }
                 } catch(e) { /* ignore */ }
             });
             
@@ -1101,6 +1202,7 @@
             // (удален дублирующийся блок шифрования)
 
             // Навигация: начать чат по ID
+            const startChatInput = document.getElementById('start-chat-id');
             startChatBtn?.addEventListener('click', () => {
                 const id = parseInt(startChatInput.value, 10);
                 if (id && id !== userId) {
@@ -1201,12 +1303,25 @@
                         }
                         const label = type==='started' ? 'Звонок начат' : `Звонок завершён${dur}`;
                         contentHtml = `<div class="message-text" style="opacity:.85;font-style:italic;">${label}</div>`;
-                    } else {
-                        // Текстовое сообщение (возможная расшифровка)
-                        let textToShow = data.content || '';
-                        const dec = await tryDecryptText(textToShow);
-                        if (dec !== null) textToShow = dec;
-                        contentHtml = `<div class="message-text">${textToShow}</div>`;
+                } else {
+                    // Текстовое сообщение (возможная расшифровка)
+                    let textToShow = data.content || '';
+                    if (looksLikeFilename(textToShow)) { // скрываем мусорное одиночное имя файла
+                        return;
+                    }
+                    const dec = await tryDecryptText(textToShow);
+                    if (dec !== null) textToShow = dec;
+                    contentHtml = `<div class="message-text">${textToShow}</div>`;
+                    // Если ещё не расшифровалось, попробуем позже, когда придёт ключ
+                    if (textToShow.startsWith('enc:')){
+                        const el = document.createElement('div');
+                        el.className = `message ${isSent ? 'sent' : 'received'}`;
+                        el.innerHTML = `<div class=\"message-text\">${textToShow}</div><div class=\"message-time\">${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}${isSent ? ' <i class=\"fas fa-check-double\" style=\"margin-left: 5px;\"></i>' : ''}</div>`;
+                        chatMessages.appendChild(el);
+                        const t = el.querySelector('.message-text');
+                        await attemptDecryptInto(t, textToShow);
+                        return;
+                    }
                     }
                 }
                 
@@ -1240,12 +1355,11 @@
                 initE2E();
                 fetch(`/api/messages/${friendId}`)
                     .then(response => response.json())
-                    .then(data => {
-                        data.messages.forEach(msg => {
+                    .then(async (data) => {
+                        for (const msg of data.messages) {
                             const isSent = msg.sender_id == userId;
                             const messageDiv = document.createElement('div');
                             messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
-                            
                             let contentHtml;
                             if (msg.file_path) {
                                 const fileUrl = '{{ url_for("static", filename="message_files/") }}' + msg.file_path;
@@ -1256,19 +1370,46 @@
                                             <i class="fas fa-paperclip"></i> ${fileName}
                                         </a>
                                     </div>
-                                    ${msg.content ? `<div class="message-text">${msg.content}</div>` : ''}
+                                    ${msg.content ? `<div class=\"message-text\">${msg.content}</div>` : ''}
                                 `;
+                            } else if (msg.content && msg.content.startsWith('[call]')) {
+                                const parts = msg.content.split('|');
+                                const type = parts[0].includes('ended') ? 'ended' : 'started';
+                                let dur = '';
+                                if (type==='ended'){
+                                    const kv = (parts[1]||'').split('=');
+                                    const sec = parseInt(kv[1]||'0',10);
+                                    if (sec>0){
+                                        const m = Math.floor(sec/60), s = String(sec%60).padStart(2,'0');
+                                        dur = ` (${m}:${s})`;
+                                    }
+                                }
+                                const label = type==='started' ? 'Звонок начат' : `Звонок завершён${dur}`;
+                                contentHtml = `<div class="message-text" style="opacity:.85;font-style:italic;">${label}</div>`;
                             } else {
-                                contentHtml = `<div class="message-text">${msg.content}</div>`;
+                                let textToShow = msg.content || '';
+                                const dec = await tryDecryptText(textToShow);
+                                if (dec !== null) textToShow = dec;
+                                if (looksLikeFilename(textToShow)) continue; // пропускаем мусор
+                                if (textToShow.startsWith('enc:')){
+                                    // Не показываем содержимое, пока не расшифруем
+                                    const el = document.createElement('div');
+                                    el.className = `message ${isSent ? 'sent' : 'received'}`;
+                                    el.innerHTML = `<div class=\"message-text cipher\">Сообщение расшифровывается…</div><div class=\"message-time\">${msg.timestamp}</div>`;
+                                    chatMessages.appendChild(el);
+                                    const t = el.querySelector('.message-text');
+                                    await attemptDecryptInto(t, textToShow);
+                                    if (t.dataset.decoded !== '1') { t.textContent = 'Не удалось расшифровать'; }
+                                    continue;
+                                }
+                                contentHtml = `<div class=\"message-text\">${textToShow}</div>`;
                             }
-                            
                             messageDiv.innerHTML = `
                                 ${contentHtml}
                                 <div class="message-time">${msg.timestamp}</div>
                             `;
-                            
                             chatMessages.appendChild(messageDiv);
-                        });
+                        }
                         scrollToBottom();
                     });
             }
@@ -1437,8 +1578,8 @@
             socket.on('message_deleted', (data)=>{
                 const el = chatMessages.querySelector(`.message[data-msg-id="${data.id}"] .message-text`);
                 if (el){ el.style.opacity='.7'; el.textContent='Сообщение удалено'; }
-            });
-
+        });
+            
             // Прокрутка вниз
             function scrollToBottom() {
                 chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -1550,7 +1691,7 @@
                     }
                 };
             }
-
+            
             // ========== DEBUG PANEL (admin only) ==========
             function initDebugPanel(){
                 if (document.getElementById('rtc-debug-toggle')) return;
@@ -1795,14 +1936,14 @@
                 pendingOfferSender = data.sender_id;
                 callPeerId = data.sender_id;
                 if (callStatus && callModal) {
-                    isCaller = false;
-                    callStatus.textContent = 'Входящий звонок';
-                    callModal.style.display = 'flex';
-                    if (callAccept) callAccept.style.display = 'block';
-                    if (callDecline) callDecline.style.display = 'block';
-                    if (callEnd) callEnd.style.display = 'none';
-                    if (muteBtn) muteBtn.style.display = 'none';
-                }
+                        isCaller = false;
+                        callStatus.textContent = 'Входящий звонок';
+                        callModal.style.display = 'flex';
+                        if (callAccept) callAccept.style.display = 'block';
+                        if (callDecline) callDecline.style.display = 'block';
+                        if (callEnd) callEnd.style.display = 'none';
+                        if (muteBtn) muteBtn.style.display = 'none';
+                    }
                 try{
                     if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
                     if (Notification && Notification.permission === 'granted'){
@@ -1822,10 +1963,10 @@
             // Получение ответа на звонок
             socket.on('webrtc_answer', async (data) => {
                 // Примем answer независимо от активного чата
-                try {
-                    await peerConnection.setRemoteDescription(data.answer);
-                } catch (e) {
-                    console.error('setRemoteDescription(answer) error', e);
+                    try {
+                        await peerConnection.setRemoteDescription(data.answer);
+                    } catch (e) {
+                        console.error('setRemoteDescription(answer) error', e);
                 }
             });
             
@@ -1837,7 +1978,7 @@
                         await peerConnection.addIceCandidate(data.candidate);
                     } catch (error) {
                         console.error('Ошибка добавления ICE кандидата:', error);
-                    }
+                }
             });
             
             // Получение сигнала о завершении звонка
@@ -1852,15 +1993,15 @@
                 callDecline && (callDecline.style.display = 'none');
                 muteBtn && (muteBtn.style.display = 'none');
                 callEnd && (callEnd.style.display = 'none');
-                if (!hasConnected) {
+                    if (!hasConnected) {
                     callRetry && (callRetry.style.display = 'inline-flex');
                     // не переотправляем end в ответ
                     hasSentEndSignal = true;
                     pendingOffer = null; pendingOfferSender = null;
                     setTimeout(()=>{ try{ callModal.style.display = 'none'; }catch(_e){} }, 1600);
-                } else {
+                    } else {
                     hasSentEndSignal = true;
-                    endCall();
+                        endCall();
                 }
             });
 
@@ -1879,6 +2020,8 @@
                 const peer = callPeerId || friendId;
                 if (data.sender_id === peer) {
                     peerMutedBanner.style.display = data.muted ? 'block' : 'none';
+                    const mm = document.getElementById('peer-mic-muted');
+                    if (mm) mm.style.display = data.muted ? 'flex' : 'none';
                 }
             });
 
