@@ -592,7 +592,7 @@
                 </a>
             </div>
         </div>
-        <script src="{{ url_for('static', filename='js/nowbar.js') }}"></script>
+        
         <script src="{{ url_for('static', filename='js/device.js') }}"></script>
 
         <div class="content">
@@ -803,6 +803,9 @@
             let callInProgress = false;
             let hasConnected = false; // Соединение установлено хотя бы раз
             let statsTimer = null;
+            // Сохраняем входящее предложение до нажатия «Принять»
+            let pendingOffer = null;
+            let pendingOfferSender = null;
 
             async function populateMicDevices() {
                 try {
@@ -1070,6 +1073,10 @@
                 } catch(_e) {}
             });
             socket.on('join_response', (data) => { roomJoined = true; });
+            // Если мы только вошли в чат и есть активный звонок — попросим инициатора переслать оффер
+            setTimeout(()=>{
+                if (!peerConnection && friendId){ socket.emit('request_resend_offer', { sender_id: friendId }); }
+            }, 600);
 
             // Отправка сообщения
             // (удален дублирующийся блок шифрования)
@@ -1377,7 +1384,10 @@
                     await populateMicDevices();
                     localStream = await getLocalStream(withVideo);
                     createPeerConnection();
-                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                    {
+                        const existing = peerConnection.getSenders().map(s=>s.track && s.track.id);
+                        localStream.getTracks().forEach(track => { if (!existing.includes(track.id)) peerConnection.addTrack(track, localStream); });
+                    }
                     // Дальше предложения пойдут через onnegotiationneeded
                 } catch (error) {
                     console.error('Ошибка при запуске звонка:', error);
@@ -1399,7 +1409,8 @@
                     if (remoteAudio) remoteAudio.srcObject = remoteStream;
                 };
                 if (localStream) {
-                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                    const existing = peerConnection.getSenders().map(s=>s.track && s.track.id);
+                    localStream.getTracks().forEach(track => { if (!existing.includes(track.id)) peerConnection.addTrack(track, localStream); });
                 }
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
@@ -1514,7 +1525,7 @@
                 return res;
             }
             
-            // Принять звонок
+            // Принять звонок: устанавливаем сохранённый оффер, потом создаём answer
             callAccept && callAccept.addEventListener('click', async () => {
                 try {
                     hasSentEndSignal = false;
@@ -1525,10 +1536,25 @@
                     if (muteBtn) muteBtn.style.display = 'inline-flex';
                     await populateMicDevices();
                     localStream = await getLocalStream(false);
-                    // Обновим callPeerId на случай, если входящий из другого чата
-                    callPeerId = friendId || callPeerId;
-                    if (peerConnection) localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-                    // Ответ будет создан в обработчике offer (perfect negotiation)
+                    if (!peerConnection) createPeerConnection();
+                    if (pendingOffer) {
+                        const pcState = (peerConnection && peerConnection.signalingState) || 'stable';
+                        const offerCollision = (makingOffer || pcState !== 'stable');
+                        ignoreOffer = !polite && offerCollision;
+                        if (!ignoreOffer) {
+                            await peerConnection.setRemoteDescription(pendingOffer);
+                        }
+                    }
+                    if (localStream) {
+                        const existing = peerConnection.getSenders().map(s=>s.track && s.track.id);
+                        localStream.getTracks().forEach(track => { if (!existing.includes(track.id)) peerConnection.addTrack(track, localStream); });
+                    }
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+                    const targetPeer = (pendingOfferSender || callPeerId || friendId);
+                    if (targetPeer) socket.emit('webrtc_answer', { answer: peerConnection.localDescription, receiver_id: targetPeer });
+                    try { remoteAudio && remoteAudio.play && remoteAudio.play().catch(()=>{}); } catch(_e){}
+                    pendingOffer = null; pendingOfferSender = null;
                 } catch (error) {
                     console.error('Ошибка при принятии звонка:', error);
                     showCallError('Не удалось принять звонок.');
@@ -1538,8 +1564,9 @@
             
             // Отклонить/закончить звонок
             callDecline && callDecline.addEventListener('click', () => {
-                if (!hasSentEndSignal) {
-                    socket.emit('webrtc_end_call', { receiver_id: friendId, reason: 'declined' });
+                const targetPeer = callPeerId || friendId;
+                if (!hasSentEndSignal && targetPeer) {
+                    socket.emit('webrtc_end_call', { receiver_id: targetPeer, reason: 'declined' });
                     hasSentEndSignal = true;
                 }
                 endCall();
@@ -1558,7 +1585,10 @@
                     await populateMicDevices();
                     localStream = await getLocalStream(false);
                     if (!peerConnection) createPeerConnection();
-                    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+                    {
+                        const existing = peerConnection.getSenders().map(s=>s.track && s.track.id);
+                        localStream.getTracks().forEach(track => { if (!existing.includes(track.id)) peerConnection.addTrack(track, localStream); });
+                    }
                     const offer = await peerConnection.createOffer();
                     await peerConnection.setLocalDescription(offer);
                     const targetPeer = callPeerId || friendId;
@@ -1665,45 +1695,34 @@
             
             // Обработчики WebRTC событий от сервера
             
-            // Получение предложения о звонке (базовая логика входящего)
+            // Получили оффер: только показываем входящий, ответ сформируем после клика «Принять»
             socket.on('webrtc_offer', async (data) => {
-                if (data.sender_id === friendId) {
-                    const offerCollision = (makingOffer || peerConnection.signalingState !== 'stable');
-                    ignoreOffer = !polite && offerCollision;
-                    if (ignoreOffer) return;
-                    if (!peerConnection) createPeerConnection();
-                    try {
-                        isSettingRemoteAnswerPending = (data.offer.type === 'answer');
-                        await peerConnection.setRemoteDescription(data.offer);
-                        // Сохраняем фактического собеседника входящего звонка
-                        callPeerId = data.sender_id;
-                        if (data.offer.type === 'offer') {
-                            if (!localStream) {
-                                await populateMicDevices();
-                                localStream = await getLocalStream(false);
-                                localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
-                            }
-                            const answer = await peerConnection.createAnswer();
-                            await peerConnection.setLocalDescription(answer);
-                            const targetPeer = callPeerId || friendId;
-                            if (targetPeer) socket.emit('webrtc_answer', { answer: peerConnection.localDescription, receiver_id: targetPeer });
-                        }
-                    } catch (e) {
-                        console.error('handle offer error', e);
-                    } finally {
-                        isSettingRemoteAnswerPending = false;
-                    }
-                    // Покажем модалку входящего при необходимости
-                    if (callStatus && callModal && data.offer.type === 'offer') {
-                        isCaller = false;
-                        callStatus.textContent = 'Входящий звонок';
-                        callModal.style.display = 'flex';
-                        if (callAccept) callAccept.style.display = 'block';
-                        if (callDecline) callDecline.style.display = 'block';
-                        if (callEnd) callEnd.style.display = 'none';
-                        if (muteBtn) muteBtn.style.display = 'none';
-                    }
+                pendingOffer = data.offer;
+                pendingOfferSender = data.sender_id;
+                callPeerId = data.sender_id;
+                if (callStatus && callModal) {
+                    isCaller = false;
+                    callStatus.textContent = 'Входящий звонок';
+                    callModal.style.display = 'flex';
+                    if (callAccept) callAccept.style.display = 'block';
+                    if (callDecline) callDecline.style.display = 'block';
+                    if (callEnd) callEnd.style.display = 'none';
+                    if (muteBtn) muteBtn.style.display = 'none';
                 }
+                try{
+                    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+                    if (Notification && Notification.permission === 'granted'){
+                        const n = new Notification('Входящий звонок', { body: 'Открыть диалог и принять?', silent: false });
+                        setTimeout(()=>n.close(), 4000);
+                    }
+                }catch(_e){}
+            });
+
+            // По запросу от принимающего — переотправляем текущий оффер (если мы инициатор и уже есть localDescription)
+            socket.on('resend_offer', async (req) => {
+                if (!peerConnection || !peerConnection.localDescription) return;
+                const targetPeer = (req && req.from_user_id) || friendId;
+                if (targetPeer){ socket.emit('webrtc_offer', { offer: peerConnection.localDescription, receiver_id: targetPeer }); }
             });
             
             // Получение ответа на звонок
@@ -1751,7 +1770,8 @@
 
             // Прием статуса mute от собеседника
             socket.on('webrtc_peer_mute', (data) => {
-                if (data.sender_id === friendId) {
+                const peer = callPeerId || friendId;
+                if (data.sender_id === peer) {
                     peerMutedBanner.style.display = data.muted ? 'block' : 'none';
                 }
             });

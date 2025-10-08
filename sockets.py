@@ -547,6 +547,17 @@ def register_socket_handlers(socketio):
             'muted': bool(muted)
         }, room=str(receiver_id))
 
+    # Запрос на повторную отправку оффера (когда принимающий только что перешёл в чат)
+    @socketio.on('request_resend_offer')
+    def handle_request_resend_offer(data):
+        if 'user_id' not in session:
+            return
+        target_sender_id = data.get('sender_id')
+        if not target_sender_id:
+            return
+        # Пересылаем запрос инициатору звонка
+        emit('resend_offer', { 'from_user_id': session['user_id'] }, room=str(target_sender_id))
+
     # Добавляем новый обработчик для диагностики медиаустройств
     @socketio.on('media_devices_status')
     def handle_media_devices_status(data):
