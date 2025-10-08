@@ -143,7 +143,7 @@
             box-shadow: var(--shadow); 
             padding: 20px; 
             height: 100%; 
-            overflow-y: auto; 
+            /* overflow-y removed to restore previous scrolling behavior */
         }
         
         .friends-list h2 { 
@@ -212,7 +212,6 @@
             align-items: center; 
             padding: 20px; 
             border-bottom: 1px solid var(--border-color); 
-            position: sticky; top:0; z-index:5; background: var(--chat-bg);
         }
         
         .chat-avatar {
@@ -340,7 +339,6 @@
             padding: 15px; 
             border-top: 1px solid var(--border-color); 
             align-items: center; 
-            position: sticky; bottom:0; z-index:5; background: var(--chat-bg);
         }
         
         .chat-input textarea { 
@@ -409,6 +407,15 @@
             z-index: 1000;
             font-size: 1.2rem;
         }
+
+        /* Admin WebRTC debug panel */
+        .debug-toggle{position:fixed;bottom:30px;left:30px;width:46px;height:46px;border-radius:10px;border:none;background:#10b981;color:#fff;z-index:1200;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25)}
+        .debug-panel{position:fixed;bottom:90px;left:30px;width:min(360px,92vw);background:var(--section-bg);color:var(--text-primary);border:1px solid var(--border-color);border-radius:12px;box-shadow:0 18px 60px rgba(0,0,0,.35);z-index:1300;overflow:hidden}
+        .debug-panel .debug-header{padding:10px 12px;border-bottom:1px solid var(--border-color);font-weight:700;display:flex;align-items:center;justify-content:space-between}
+        .debug-panel .debug-body{padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .debug-panel .debug-row{display:contents}
+        .debug-panel .debug-row div{padding:4px 0;font-size:.92rem}
+        .debug-actions{padding:10px 12px;border-top:1px solid var(--border-color);display:flex;gap:8px;justify-content:flex-end}
 
         /* Стили для звонков */
         .call-modal {
@@ -1041,6 +1048,11 @@
                     socket.emit('join_chat', { friend_id: friendId });
                 }
                 socketReady = true;
+
+                // Включаем отладчик только для админов
+                try {
+                    if ({{ 'true' if current_user and current_user.role == 'admin' else 'false' }}) initDebugPanel();
+                } catch(_e) {}
             });
             socket.on('join_response', (data) => { roomJoined = true; });
 
@@ -1417,6 +1429,74 @@
                         makingOffer = false;
                     }
                 };
+            }
+
+            // ========== DEBUG PANEL (admin only) ==========
+            function initDebugPanel(){
+                if (document.getElementById('rtc-debug-toggle')) return;
+                const t = document.createElement('button');
+                t.id='rtc-debug-toggle'; t.className='debug-toggle'; t.innerHTML='<i class="fas fa-bug"></i>';
+                const p = document.createElement('div');
+                p.id='rtc-debug-panel'; p.className='debug-panel'; p.style.display='none';
+                p.innerHTML = `
+                    <div class="debug-header">WebRTC Debug <button id="dbg-close" style="background:transparent;border:none;color:var(--text-primary);cursor:pointer">×</button></div>
+                    <div class="debug-body">
+                        <div>Conn:</div><div id="dbg-conn">—</div>
+                        <div>ICE:</div><div id="dbg-ice">—</div>
+                        <div>Audio bitrate:</div><div id="dbg-br">—</div>
+                        <div>RTT:</div><div id="dbg-rtt">—</div>
+                        <div>Jitter:</div><div id="dbg-jit">—</div>
+                        <div>Loss:</div><div id="dbg-loss">—</div>
+                    </div>
+                    <div class="debug-actions">
+                        <button id="dbg-restart" class="btn">Restart ICE</button>
+                        <button id="dbg-copy" class="btn">Copy Stats</button>
+                    </div>`;
+                document.body.appendChild(t); document.body.appendChild(p);
+                t.addEventListener('click', ()=>{ p.style.display = (p.style.display==='none')?'block':'none'; });
+                document.getElementById('dbg-close').addEventListener('click', ()=>{ p.style.display='none'; });
+                document.getElementById('dbg-restart').addEventListener('click', ()=>{ try{ peerConnection && peerConnection.restartIce(); }catch(_e){} });
+                document.getElementById('dbg-copy').addEventListener('click', async ()=>{
+                    const s = await collectStatsOnce();
+                    const text = Object.entries(s).map(([k,v])=>`${k}: ${v}`).join('\n');
+                    try { await navigator.clipboard.writeText(text); toast('Stats copied'); } catch(_e){ /* ignore */ }
+                });
+                // периодическое обновление
+                setInterval(async ()=>{
+                    const s = await collectStatsOnce();
+                    document.getElementById('dbg-conn').textContent = (peerConnection && peerConnection.connectionState)||'—';
+                    document.getElementById('dbg-ice').textContent = (peerConnection && peerConnection.iceConnectionState)||'—';
+                    document.getElementById('dbg-br').textContent = (s.bitrateKbps!=null? s.bitrateKbps+' kbps':'—');
+                    document.getElementById('dbg-rtt').textContent = (s.rttMs!=null? s.rttMs+' ms':'—');
+                    document.getElementById('dbg-jit').textContent = (s.jitterMs!=null? s.jitterMs+' ms':'—');
+                    document.getElementById('dbg-loss').textContent = (s.lossPct!=null? s.lossPct+'%':'—');
+                }, 1500);
+            }
+
+            async function collectStatsOnce(){
+                const res = { bitrateKbps:null, rttMs:null, jitterMs:null, lossPct:null };
+                try{
+                    if (!peerConnection) return res;
+                    const stats = await peerConnection.getStats();
+                    let packetsLost=0, packetsSent=0, bytesSent=0, prevTs = collectStatsOnce.__ts||0, prevBytes = collectStatsOnce.__bytes||0, ts=Date.now();
+                    stats.forEach(r=>{
+                        if (r.type==='outbound-rtp' && r.kind==='audio'){
+                            if (r.packetsSent) packetsSent += r.packetsSent;
+                            if (r.bytesSent) bytesSent += r.bytesSent;
+                        }
+                        if (r.type==='remote-inbound-rtp' && r.kind==='audio'){
+                            if (r.roundTripTime) res.rttMs = Math.round(r.roundTripTime*1000);
+                            if (r.jitter) res.jitterMs = Math.round(r.jitter*1000);
+                            if (r.packetsLost) packetsLost += r.packetsLost;
+                        }
+                    });
+                    if (prevTs>0 && bytesSent>=prevBytes){
+                        const deltaBytes = bytesSent - prevBytes; const deltaMs = ts - prevTs; res.bitrateKbps = Math.round((deltaBytes*8)/deltaMs);
+                    }
+                    collectStatsOnce.__ts = ts; collectStatsOnce.__bytes = bytesSent;
+                    res.lossPct = packetsSent>0 ? Math.round((packetsLost/(packetsSent+packetsLost))*100) : null;
+                }catch(_e){}
+                return res;
             }
             
             // Принять звонок
