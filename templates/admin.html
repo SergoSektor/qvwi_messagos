@@ -85,6 +85,7 @@
             .codes-table th:nth-child(5){ width:9%; }
             .codes-table th:nth-child(6){ width:9%; }
         }
+        .table-wrap{ overflow-x:auto; }
         
         .system-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; }
         .control-card { background: var(--card); padding: 25px; border-radius: 12px; }
@@ -338,6 +339,7 @@
                         {% if invites %}
                         <div style="margin-top:15px">
                             <h4 style="margin-bottom:10px">Активные коды</h4>
+                            <div class="table-wrap">
                             <table class="user-table codes-table">
                                 <thead>
                                     <tr><th>Код</th><th>Осталось использований</th><th>Создан</th><th>Действует до</th><th>Статус</th><th></th></tr>
@@ -360,6 +362,7 @@
                                     {% endfor %}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                         {% endif %}
                     </div>

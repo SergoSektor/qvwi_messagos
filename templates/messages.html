@@ -203,8 +203,7 @@
             box-shadow: var(--shadow); 
             display: flex; 
             flex-direction: column; 
-            height: 100%; 
-            overflow-y: auto;
+            height: calc(100vh - 60px);
         }
         
         .chat-header { 
@@ -280,30 +279,46 @@
         .chat-messages { 
             flex: 1; 
             padding: 20px; 
+            overflow-y: auto; 
         }
         
         .message { 
-            max-width: 75%; 
-            padding: 15px; 
+            max-width: 70%; 
+            padding: 10px 12px; 
             border-radius: 18px; 
             position: relative; 
+            margin: 6px 0; 
+            line-height: 1.35;
+            box-shadow: 0 2px 6px rgba(0,0,0,.12);
         }
-        .message a{ color:#4a76a8; word-break: break-all; }
+        /* Цвета пузырей (темная тема как на примере) */
+        .message.sent{ background:#2a2d31; color:#e6edf3; border-bottom-right-radius:6px; }
+        .message.received{ background:#1f3348; color:#e6edf3; border-bottom-left-radius:6px; }
+        /* Хвостики */
+        .message.sent::after{ content:""; position:absolute; left:-6px; right:auto; bottom:0; width:12px; height:12px; background: var(--received-message); clip-path: polygon(0 0, 0 100%, 100% 100%); border-bottom-left-radius:4px; }
+        .message.received::after{ content:""; position:absolute; right:-6px; left:auto; bottom:0; width:12px; height:12px; background: var(--sent-message); clip-path: polygon(0 100%, 100% 0, 100% 100%); border-bottom-right-radius:4px; }
+        .message a{ color:#76a9ff; word-break: break-all; }
         .message-file{ display:flex; align-items:center; gap:8px; }
-        .message-file i{ color:#4a76a8; }
+        .message-file i{ color:#76a9ff; }
+        .message-time{ font-size: 12px; opacity:.75; margin-top:4px; text-align:right; color:#cbd5e1; }
         
+        /* Поменяли стороны: свои слева, собеседник справа */
         .sent { 
-            align-self: flex-end; 
-            background: var(--sent-message); 
-            color: white; 
-            border-bottom-right-radius: 5px; 
-        }
-        
-        .received { 
             align-self: flex-start; 
+            margin-right: auto; 
+            margin-left: 6px;
             background: var(--received-message); 
             color: var(--text-primary);
             border-bottom-left-radius: 5px; 
+        }
+        
+        .received { 
+            align-self: flex-end; 
+            margin-left: auto; 
+            margin-right: 6px;
+            background: var(--sent-message); 
+            color: white; 
+            border-bottom-right-radius: 5px; 
         }
         
         .message-text {
@@ -318,12 +333,12 @@
         }
         
         .sent .message-time { 
-            text-align: right; 
-            color: rgba(255,255,255,0.8); 
+            color: var(--text-secondary); 
         }
         
         .received .message-time { 
-            color: var(--text-secondary); 
+            text-align: right; 
+            color: rgba(255,255,255,0.8); 
         }
         
         .typing-indicator { 
@@ -1051,7 +1066,7 @@
 
                 // Включаем отладчик только для админов
                 try {
-                    if ({{ 'true' if current_user and current_user.role == 'admin' else 'false' }}) initDebugPanel();
+                    if ({{ 'true' if user and (user[6] == 'admin') else 'false' }}) initDebugPanel();
                 } catch(_e) {}
             });
             socket.on('join_response', (data) => { roomJoined = true; });
