@@ -77,9 +77,27 @@ def music_report():
         return redirect(url_for('auth.index'))
     track_id = request.form.get('track_id'); reason = request.form.get('reason','').strip()
     if not track_id or not reason:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify(success=False, error='empty')
         return redirect(url_for('music.music_index'))
     conn = get_db(); c = conn.cursor()
-    c.execute('INSERT INTO music_reports (reporter_id, track_id, reason) VALUES (?,?,?)', (session['user_id'], track_id, reason))
+    try:
+        # проверим, не существует ли уже открытой жалобы от этого пользователя
+        c.execute("SELECT id FROM music_reports WHERE reporter_id=? AND track_id=? AND status='open'", (session['user_id'], track_id))
+        exists = c.fetchone()
+        if exists:
+            # считаем успехом, чтобы не мешать пользователю
+            conn.close()
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify(success=True, duplicate=True)
+            return redirect(url_for('music.music_index'))
+        c.execute('INSERT INTO music_reports (reporter_id, track_id, reason) VALUES (?,?,?)', (session['user_id'], track_id, reason))
+    except Exception:
+        conn.rollback()
+        conn.close()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify(success=False, error='db')
+        return redirect(url_for('music.music_index'))
     conn.commit(); conn.close()
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify(success=True)

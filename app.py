@@ -47,7 +47,8 @@ os.makedirs(Config.MUSIC_FOLDER, exist_ok=True)
 os.makedirs('ssl', exist_ok=True)
 
 # Инициализация SocketIO
-socketio = SocketIO(app, cors_allowed_origins="*")
+# Ограничиваем CORS для сокетов: по умолчанию same-origin
+socketio = SocketIO(app, cors_allowed_origins=(Config.CORS_ALLOWED_ORIGINS.split(',') if Config.CORS_ALLOWED_ORIGINS else None))
 
 # Регистрация blueprint'ов
 from routes import auth, feed, profile, gallery, messages, friends, static
@@ -65,6 +66,44 @@ app.register_blueprint(music_bp)
 # Импорт сокетов
 from sockets import register_socket_handlers
 register_socket_handlers(socketio)
+
+def _gen_csrf_token():
+    import secrets
+    token = session.get('_csrf_token')
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session['_csrf_token'] = token
+    return token
+
+@app.context_processor
+def inject_csrf():
+    return {'csrf_token': _gen_csrf_token()}
+
+@app.before_request
+def csrf_protect():
+    # Защищаем только небезопасные методы и только HTML-формы/JSON
+    if request.method in ('POST','PUT','PATCH','DELETE'):
+        # Исключаем загрузку сокетов и статику
+        if request.path.startswith('/socket.io') or request.path.startswith('/static'):
+            return None
+        # Разрешаем страницу логина/регистрации без csrf, если токена в сессии еще нет
+        if request.endpoint in {'auth.index'}:
+            if not session.get('_csrf_token'):
+                return None
+        token = None
+        # 1) header Ajax
+        token = request.headers.get('X-CSRFToken') or request.headers.get('X-CSRF-Token')
+        # 2) form field
+        if not token:
+            token = request.form.get('csrf_token') or request.args.get('csrf_token')
+        # 3) json body
+        if not token and request.is_json:
+            try:
+                token = (request.get_json(silent=True) or {}).get('csrf_token')
+            except Exception:
+                token = None
+        if not token or token != session.get('_csrf_token'):
+            return ('CSRF token missing or invalid', 400)
 
 def datetimeformat(value, format='%d.%m.%Y %H:%M'):
     if not value:

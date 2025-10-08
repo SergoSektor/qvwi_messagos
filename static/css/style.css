@@ -1004,3 +1004,13 @@ body,
     opacity: 0;
     pointer-events: none;
 }
+
+/* Responsive device classes */
+body.device-mobile .sidebar{ width:100%; height:auto; position:relative; padding:12px; }
+body.device-mobile .content{ margin-left:0; padding:12px; }
+body.device-mobile .profile-card{ display:none; }
+body.device-mobile .nav a{ padding:10px 12px; }
+body.device-mobile .post-actions button{ padding:8px 10px; }
+
+body.device-tablet .sidebar{ width:220px; }
+body.device-tablet .content{ margin-left:220px; }

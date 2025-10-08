@@ -5,7 +5,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root{ --bg:#f0f2f5; --panel:#ffffff; --card:#f8f9fb; --muted:#6b7280; --text:#1f2937; --accent:#4a76a8; --danger:#e11d48; --table-border:#e5e7eb; }
-        .dark-theme { --bg:#0f172a; --panel:#111827; --card:#0b1220; --muted:#9ca3af; --text:#e5e7eb; --accent:#4a76a8; --danger:#e74c3c; --table-border:rgba(255,255,255,0.06); }
+        .dark-theme { --bg:#101418; --panel:#161b22; --card:#0f1720; --muted:#9da3ae; --text:#e6edf3; --accent:#4a76a8; --danger:#e74c3c; --table-border:rgba(255,255,255,0.08); }
         body{font-family:Segoe UI,Tahoma,Arial;background:var(--bg);color:var(--text);margin:0}
         .app{display:flex;min-height:100vh}
         .sidebar{width:280px;background:var(--panel);padding:25px;box-shadow:0 0 20px rgba(0,0,0,.4);position:fixed;height:100vh}
@@ -17,6 +17,12 @@
         .nav a i{margin-right:12px}
         .nav a:hover{background:rgba(255,255,255,.06)}
         .content{flex:1;margin-left:280px;padding:30px}
+        /* Фиксированный верхний мини‑плеер */
+        .nowbar{position:fixed;left:280px;right:0;top:0;background:var(--panel);border-bottom:1px solid var(--table-border);z-index:2000;display:none}
+        .nowbar-inner{display:flex;align-items:center;gap:12px;padding:10px 16px}
+        .nowbar .title{font-weight:600;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .nowbar .p-seek-small{flex:1}
+        .nowbar .p-seek-small input{width:100%}
         .wrap{max-width:980px;margin:0 auto}
         .panel{background:var(--panel);border:1px solid var(--table-border);border-radius:12px;padding:16px}
         .grid{display:grid;gap:10px}
@@ -37,6 +43,8 @@
         .p-seek::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);border:none;margin-top:-3px}
         .p-seek::-moz-range-thumb{width:12px;height:12px;border:none;border-radius:50%;background:var(--accent)}
         .p-vol{width:90px}
+        .p-vol::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);border:none}
+        .p-vol::-moz-range-thumb{width:12px;height:12px;border:none;border-radius:50%;background:var(--accent)}
 
         /* Модалка жалобы */
         .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:3000}
@@ -50,6 +58,19 @@
         .theme-toggle{position:fixed;bottom:30px;right:30px;width:60px;height:60px;border-radius:50%;background:var(--accent);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 15px rgba(0,0,0,.2);z-index:1000;font-size:1.4rem}
     </style>
     <script>
+        // Инициализация темы на музыке (учитываем системную и сохранённую)
+        (function(){
+            let saved = localStorage.getItem('theme');
+            if (!saved) {
+                // если ещё не сохранена — используем системную prefer-color-scheme
+                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                saved = prefersDark ? 'dark' : 'light';
+                localStorage.setItem('theme', saved);
+            }
+            document.body.classList.toggle('dark-theme', saved === 'dark');
+        })();
+    </script>
+    <script>
         // Тосты
         function toast(msg){
             let h = document.getElementById('toasts');
@@ -62,33 +83,84 @@
         // Модалка жалобы
         let reportTrackId = null;
         function buildReportModal(){
-            const m = document.createElement('div'); m.className='modal-backdrop'; m.id='report-modal';
+            // Используем существующий контейнер, если он есть, иначе создаём
+            let m = document.getElementById('report-modal');
+            if (!m){ m = document.createElement('div'); m.id='report-modal'; document.body.appendChild(m); }
+            m.className = 'modal-backdrop';
             m.innerHTML = `
                 <div class="modal">
                     <div class="modal-header">Жалоба на трек</div>
                     <div class="modal-body">
-                        <div style="margin-bottom:6px;color:var(--muted)">Причина:</div>
-                        <textarea id="report-reason" placeholder="Например: нарушение авторских прав, оскорбления и т.д."></textarea>
+                        <div style="margin-bottom:8px;color:var(--muted)">Выберите причину:</div>
+                        <div id="report-reasons" style="display:grid;gap:8px;margin-bottom:10px;">
+                            <label style="display:flex;gap:8px;align-items:center;"><input type="radio" name="rep" value="Нарушение авторских прав"> Нарушение авторских прав</label>
+                            <label style="display:flex;gap:8px;align-items:center;"><input type="radio" name="rep" value="Оскорбления/ненависть"> Оскорбления/ненависть</label>
+                            <label style="display:flex;gap:8px;align-items:center;"><input type="radio" name="rep" value="18+ контент"> 18+ контент</label>
+                            <label style="display:flex;gap:8px;align-items:center;"><input type="radio" name="rep" value="Спам"> Спам</label>
+                            <label style="display:flex;gap:8px;align-items:center;"><input type="radio" name="rep" value="Иное"> Иное</label>
+                        </div>
+                        <div style="margin-bottom:6px;color:var(--muted)">Комментарий (необязательно):</div>
+                        <textarea id="report-reason" placeholder="Опишите детали, если нужно"></textarea>
                     </div>
                     <div class="modal-footer">
                         <button class="pbtn secondary" id="rep-cancel">Отмена</button>
                         <button class="pbtn" id="rep-send">Отправить</button>
                     </div>
                 </div>`;
-            document.body.appendChild(m);
         }
         function openReportModal(id){
-            reportTrackId = id; document.getElementById('report-reason').value='';
+            reportTrackId = id;
+            // очистим форму
+            const modal = document.getElementById('report-modal');
+            if (!modal) { buildReportModal(); }
+            const txt = document.getElementById('report-reason'); if (txt) txt.value='';
+            document.querySelectorAll('#report-reasons input[type="radio"]').forEach(r=> r.checked=false);
             document.getElementById('report-modal').style.display='flex';
         }
         async function sendReport(){
-            const reason = document.getElementById('report-reason').value.trim();
-            if(!reason){ toast('Введите причину'); return; }
+            const sel = document.querySelector('input[name="rep"]:checked');
+            let reason = sel ? sel.value : '';
+            const details = document.getElementById('report-reason').value.trim();
+            if (!reason && !details){ toast('Выберите причину или укажите детали'); return; }
+            if (details) reason = reason ? (reason+': '+details) : details;
             const fd = new FormData(); fd.append('track_id', reportTrackId); fd.append('reason', reason);
-            const r = await fetch('/music/report', {method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'}});
+            const r = await fetch('/music/report', {method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest','X-CSRFToken':'{{ csrf_token }}'}});
             const j = await r.json().catch(()=>({success:false}));
-            if (j && j.success){ toast('Жалоба отправлена'); document.getElementById('report-modal').style.display='none'; }
-            else { toast('Не удалось отправить жалобу'); }
+            if (j && j.success){
+                toast(j.duplicate ? 'Жалоба уже отправлена ранее' : 'Жалоба отправлена');
+                document.getElementById('report-modal').style.display='none';
+            } else {
+                toast('Не удалось отправить жалобу');
+            }
+        }
+
+        // Глобальный фиксированный плеер
+        let currentAudio = null;
+        let currentRow = null;
+        function ensureNowbar(){
+            let nb = document.getElementById('nowbar');
+            if (nb) return nb;
+            nb = document.createElement('div'); nb.id='nowbar'; nb.className='nowbar';
+            nb.innerHTML = `
+                <div class="nowbar-inner">
+                    <button class="pbtn" id="nb-play"><i class="fas fa-play"></i></button>
+                    <div class="title" id="nb-title"></div>
+                    <div class="p-time"><span id="nb-cur">0:00</span>/<span id="nb-dur">0:00</span></div>
+                    <div class="p-seek-small"><input id="nb-seek" type="range" min="0" max="1000" value="0"></div>
+                    <input id="nb-vol" class="p-vol" type="range" min="0" max="1" step="0.01" value="1">
+                </div>`;
+            document.body.appendChild(nb);
+            // Управление
+            document.getElementById('nb-play').addEventListener('click', ()=>{
+                if (!currentAudio) return; if (currentAudio.paused) currentAudio.play(); else currentAudio.pause();
+            });
+            document.getElementById('nb-seek').addEventListener('input', ()=>{
+                if (!currentAudio || !isFinite(currentAudio.duration)) return; const r = parseInt(nbSeek.value,10)/1000; currentAudio.currentTime = r*currentAudio.duration;
+            });
+            const nbSeek = document.getElementById('nb-seek');
+            const nbVol = document.getElementById('nb-vol');
+            nbVol.addEventListener('input', ()=>{ if(currentAudio) currentAudio.volume = parseFloat(nbVol.value); });
+            return nb;
         }
 
         // Кастомные плееры
@@ -103,11 +175,22 @@
                 const dur = player.querySelector('.dur');
                 const seek = player.querySelector('.p-seek');
                 const vol = player.querySelector('.p-vol');
+                const title = player.dataset.title || '';
                 audio.addEventListener('loadedmetadata', ()=>{ dur.textContent = formatTime(audio.duration); });
                 audio.addEventListener('timeupdate', ()=>{
                     cur.textContent = formatTime(audio.currentTime);
                     const p = audio.duration ? (audio.currentTime / audio.duration) : 0;
                     seek.value = Math.floor(p*1000);
+                    // синхронизируем nowbar
+                    if (currentAudio === audio){
+                        const nb = ensureNowbar();
+                        const nbCur = document.getElementById('nb-cur');
+                        const nbDur = document.getElementById('nb-dur');
+                        const nbSeek = document.getElementById('nb-seek');
+                        nbCur.textContent = formatTime(audio.currentTime);
+                        nbDur.textContent = formatTime(audio.duration);
+                        nbSeek.value = Math.floor(p*1000);
+                    }
                 });
                 playBtn.addEventListener('click', ()=>{
                     // стопим другие
@@ -115,6 +198,31 @@
                     document.querySelectorAll('.player .pbtn.play i').forEach(i=>{ i.className='fas fa-play'; });
                     if (audio.paused){ audio.play(); icon.className='fas fa-pause'; }
                     else { audio.pause(); icon.className='fas fa-play'; }
+                });
+                audio.addEventListener('play', ()=>{
+                    currentAudio = audio; currentRow = player; icon.className='fas fa-pause';
+                    const nb = ensureNowbar();
+                    document.getElementById('nb-title').textContent = title || (player.querySelector('.p-title')?.textContent || '');
+                    document.getElementById('nb-vol').value = audio.volume;
+                    document.getElementById('nb-cur').textContent = formatTime(audio.currentTime);
+                    document.getElementById('nb-dur').textContent = formatTime(audio.duration);
+                    document.getElementById('nb-seek').value = seek.value;
+                    document.getElementById('nb-play').querySelector('i').className='fas fa-pause';
+                    nb.style.display='block';
+                });
+                audio.addEventListener('pause', ()=>{
+                    if (currentAudio === audio){
+                        const nbPlay = document.getElementById('nb-play');
+                        if (nbPlay) nbPlay.querySelector('i').className='fas fa-play';
+                    }
+                    icon.className='fas fa-play';
+                });
+                audio.addEventListener('ended', ()=>{
+                    if (currentAudio === audio){
+                        const nb = document.getElementById('nowbar'); if (nb) nb.style.display='none';
+                        currentAudio = null; currentRow = null;
+                    }
+                    icon.className='fas fa-play';
                 });
                 seek.addEventListener('input', ()=>{
                     const ratio = parseInt(seek.value,10)/1000;
@@ -151,11 +259,13 @@
         <h1>Музыка</h1>
         <div class="panel" style="margin-bottom:12px;">
             <form method="POST" action="{{ url_for('music.music_upload') }}" enctype="multipart/form-data" class="grid" style="grid-template-columns:1fr auto auto;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="text" name="title" placeholder="Название трека">
                 <input type="file" name="file" accept="audio/*">
                 <button class="btn" type="submit"><i class="fas fa-upload"></i> Загрузить</button>
             </form>
             <form method="POST" action="{{ url_for('music.playlist_create') }}" style="margin-top:10px; display:flex; gap:10px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="text" name="title" placeholder="Новый плейлист">
                 <button class="btn" type="submit"><i class="fas fa-list"></i> Создать плейлист</button>
             </form>
@@ -186,9 +296,23 @@
             <div style="color:#9ca3af">Треков пока нет</div>
             {% endfor %}
     </div>
+    <button class="theme-toggle" id="themeToggle"><i class="fas fa-moon"></i></button>
+    <script src="{{ url_for('static', filename='js/device.js') }}"></script>
+    <script>
+        // Переключатель темы (совместим с общим script в admin/index)
+        (function(){
+            const btn = document.getElementById('themeToggle');
+            const icon = btn.querySelector('i');
+            function sync(){ const dark = document.body.classList.contains('dark-theme'); icon.className = dark ? 'fas fa-sun' : 'fas fa-moon'; }
+            btn.addEventListener('click', ()=>{
+                const dark = document.body.classList.toggle('dark-theme');
+                localStorage.setItem('theme', dark ? 'dark' : 'light');
+                sync();
+            });
+            sync();
+        })();
+    </script>
         </div>
-        <!-- Модалка жалобы -->
-        <div class="modal-backdrop" id="report-modal" style="display:none"></div>
         <script>
             // Построим модалку и инициализируем плееры после загрузки
             (function(){

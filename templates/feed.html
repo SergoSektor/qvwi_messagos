@@ -61,6 +61,7 @@
         <div class="create-post">
             <!-- Исправленный action для формы -->
             <form method="POST" action="{{ url_for('feed.create_post') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <textarea name="content" placeholder="Что у вас нового?" required></textarea>
                 <button type="submit"><i class="fas fa-paper-plane"></i> Опубликовать</button>
             </form>
@@ -89,6 +90,7 @@
                     </button>
                     {% endif %}
                     <form method="POST" action="{{ url_for('feed.unlike_post' if post['liked'] else 'feed.like_post', post_id=post[0]) }}" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <button type="submit">
                             <i class="fas fa-thumbs-{{ 'down' if post['liked'] else 'up' }}"></i>
                             {{ 'Убрать лайк' if post['liked'] else 'Нравится' }} ({{ post['likes_count'] or 0 }})
@@ -98,14 +100,15 @@
                     <div style="margin-left:auto; position:relative;">
                         <div class="dropdown" style="position:relative;">
                             <button type="button" onclick="toggleMenu(this)" style="border:none;background:transparent;color:#4a76a8;cursor:pointer"><i class="fas fa-ellipsis-h"></i></button>
-                            <div class="menu" style="display:none; position:absolute; right:0; background:#fff; border:1px solid #ddd; border-radius:8px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,.15);">
+                            <div class="menu" style="display:none; position:absolute; right:0; background:var(--panel, #fff); color:var(--text, #111); border:1px solid #ddd; border-radius:8px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,.15); z-index:1000; min-width:220px;">
                                 <form method="POST" action="{{ url_for('admin.create_report') }}" style="display:grid;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="target_type" value="post">
                                     <input type="hidden" name="target_id" value="{{ post[0] }}">
-                                    <button type="submit" name="reason" value="Спам" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: Спам</button>
-                                    <button type="submit" name="reason" value="Оскорбления" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: Оскорбления</button>
-                                    <button type="submit" name="reason" value="Насилие/ненависть" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: Насилие/ненависть</button>
-                                    <button type="submit" name="reason" value="18+ контент" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: 18+ контент</button>
+                                    <button type="submit" name="reason" value="Спам" style="padding:8px 12px; border:none; background:transparent; color:var(--text, #111); text-align:left; cursor:pointer;">Пожаловаться: Спам</button>
+                                    <button type="submit" name="reason" value="Оскорбления" style="padding:8px 12px; border:none; background:transparent; color:var(--text, #111); text-align:left; cursor:pointer;">Пожаловаться: Оскорбления</button>
+                                    <button type="submit" name="reason" value="Насилие/ненависть" style="padding:8px 12px; border:none; background:transparent; color:var(--text, #111); text-align:left; cursor:pointer;">Пожаловаться: Насилие/ненависть</button>
+                                    <button type="submit" name="reason" value="18+ контент" style="padding:8px 12px; border:none; background:transparent; color:var(--text, #111); text-align:left; cursor:pointer;">Пожаловаться: 18+ контент</button>
                                 </form>
                             </div>
                         </div>
@@ -126,19 +129,21 @@
                             <div style="position:absolute; right:0; top:-6px;">
                                 <div class="dropdown" style="position:relative;">
                                     <button type="button" onclick="toggleMenu(this)" style="border:none;background:transparent;color:#4a76a8;cursor:pointer"><i class="fas fa-ellipsis-h"></i></button>
-                                    <div class="menu" style="display:none; position:absolute; right:0; background:#fff; border:1px solid #ddd; border-radius:8px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,.15);">
+                                    <div class="menu" style="display:none; position:absolute; right:0; background:var(--panel, #fff); color:var(--text, #111); border:1px solid #ddd; border-radius:8px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,.15); z-index:1000; min-width:220px;">
                                         {% if c.user_id == session['user_id'] %}
                                         <form method="POST" action="{{ url_for('feed.delete_comment', comment_id=c.id) }}">
-                                            <button type="submit" style="padding:8px 12px; width:100%; border:none; background:#fff; cursor:pointer;">Удалить</button>
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button type="submit" style="padding:8px 12px; width:100%; border:none; background:transparent; color:var(--text, #111); text-align:left; cursor:pointer;">Удалить</button>
                                         </form>
                                         {% endif %}
                                         <form method="POST" action="{{ url_for('admin.create_report') }}" style="display:grid;">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                             <input type="hidden" name="target_type" value="comment">
                                             <input type="hidden" name="target_id" value="{{ c.id }}">
-                                            <button type="submit" name="reason" value="Спам" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: Спам</button>
-                                            <button type="submit" name="reason" value="Оскорбления" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: Оскорбления</button>
-                                            <button type="submit" name="reason" value="Насилие/ненависть" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: Насилие/ненависть</button>
-                                            <button type="submit" name="reason" value="18+ контент" style="padding:8px 12px; border:none; background:#fff; cursor:pointer;">Пожаловаться: 18+ контент</button>
+                                            <button type="submit" name="reason" value="Спам" style="padding:8px 12px; border:none; background:transparent; color:var(--text, #111); text-align:left; cursor:pointer;">Пожаловаться: Спам</button>
+                                            <button type="submit" name="reason" value="Оскорбления" style="padding:8px 12px; border:none; background:transparent; color:var(--text, #111); text-align:left; cursor:pointer;">Пожаловаться: Оскорбления</button>
+                                            <button type="submit" name="reason" value="Насилие/ненависть" style="padding:8px 12px; border:none; background:transparent; color:var(--text, #111); text-align:left; cursor:pointer;">Пожаловаться: Насилие/ненависть</button>
+                                            <button type="submit" name="reason" value="18+ контент" style="padding:8px 12px; border:none; background:transparent; color:var(--text, #111); text-align:left; cursor:pointer;">Пожаловаться: 18+ контент</button>
                                         </form>
                                     </div>
                                 </div>
@@ -148,6 +153,7 @@
                     </div>
                     {% endif %}
                     <form method="POST" action="{{ url_for('feed.add_comment', post_id=post[0]) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <textarea name="comment" placeholder="Ваш комментарий" required style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;"></textarea>
                         <div style="margin-top:8px; text-align:right;">
                             <button type="submit" class="delete-btn" style="background:#4a76a8;">Отправить</button>
@@ -170,6 +176,8 @@
         <i class="fas fa-moon"></i>
     </button>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/device.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/nowbar.js') }}"></script>
     <script>
         function toggleComment(id){
             const el = document.getElementById('comment-box-'+id);

@@ -500,13 +500,25 @@
         </div>
 
         <div class="content">
+            <script src="{{ url_for('static', filename='js/device.js') }}"></script>
+            <script src="{{ url_for('static', filename='js/nowbar.js') }}"></script>
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="flash-message {{ 'success' if category == 'success' else 'error' }}">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
+                <script>
+                    (function(){
+                        function toast(msg){
+                            let h = document.getElementById('toasts');
+                            if (!h) { h = document.createElement('div'); h.id='toasts'; h.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:6000;display:flex;flex-direction:column;gap:8px;'; document.body.appendChild(h); }
+                            const el = document.createElement('div');
+                            el.style.cssText='background:var(--panel,#111827);color:var(--text,#e5e7eb);border:1px solid var(--table-border,rgba(255,255,255,0.06));box-shadow:0 8px 24px rgba(0,0,0,.2);padding:10px 14px;border-radius:10px;max-width:90vw;opacity:0;transform:translateY(10px);transition:opacity .25s ease, transform .25s ease;';
+                            el.textContent = msg; h.appendChild(el);
+                            requestAnimationFrame(()=>{ el.style.opacity='1'; el.style.transform='translateY(0)'; });
+                            setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateY(10px)'; setTimeout(()=>el.remove(), 250); }, 3000);
+                        }
+                        const items = {{ messages|tojson }};
+                        items.forEach(function(it){ toast(it[1]); });
+                    })();
+                </script>
                 {% endif %}
             {% endwith %}
             

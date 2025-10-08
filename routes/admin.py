@@ -1,5 +1,7 @@
 from flask import Blueprint, render_template, session, redirect, url_for, request, jsonify
 from models import get_db
+from config import Config
+import os
 from datetime import datetime
 import sqlite3
 from sockets import emit_to_user
@@ -206,6 +208,9 @@ def resolve_report():
         c.execute('SELECT user_id FROM music WHERE id=?', (target_id,))
         row = c.fetchone(); target_user_id = row['user_id'] if row else None
 
+    # Для логов: если музыка, не связываем с основной таблицей reports
+    rep_for_log = report_id if target_type != 'music' else None
+
     # Удаление контента
     if action == 'delete':
         if target_type == 'post':
@@ -213,9 +218,16 @@ def resolve_report():
         elif target_type == 'comment':
             c.execute('DELETE FROM comments WHERE id=?', (target_id,))
         elif target_type == 'music':
+            c.execute('SELECT filename FROM music WHERE id=?', (target_id,))
+            rowf = c.fetchone()
+            if rowf and rowf['filename']:
+                try:
+                    os.remove(os.path.join(Config.MUSIC_FOLDER, rowf['filename']))
+                except Exception:
+                    pass
             c.execute('DELETE FROM music WHERE id=?', (target_id,))
         c.execute("INSERT INTO moderation_logs (report_id, moderator_id, action, target_type, target_id, details) VALUES (?,?,?,?,?,?)",
-                  (report_id, moderator_id, 'delete', target_type, target_id, None))
+                  (rep_for_log, moderator_id, 'delete', target_type, target_id, None))
 
     # Временный бан
     if action == 'ban' and target_user_id and ban_minutes > 0:
@@ -225,7 +237,7 @@ def resolve_report():
         c.execute('UPDATE users SET is_blocked=1, block_reason=? WHERE id=?', (reason_text, target_user_id))
         c.execute('INSERT INTO bans (user_id, until, reason, moderator_id) VALUES (?,?,?,?)', (target_user_id, until, ban_reason, moderator_id))
         c.execute("INSERT INTO moderation_logs (report_id, moderator_id, action, target_type, target_id, details) VALUES (?,?,?,?,?,?)",
-                  (report_id, moderator_id, 'ban', target_type, target_id, reason_text))
+                  (rep_for_log, moderator_id, 'ban', target_type, target_id, reason_text))
         try:
             emit_to_user('account_blocked', {'reason': reason_text}, target_user_id)
         except Exception:
@@ -236,7 +248,7 @@ def resolve_report():
         reason_text = f'Блокировка: {ban_reason}'
         c.execute('UPDATE users SET is_blocked=1, block_reason=? WHERE id=?', (reason_text, target_user_id))
         c.execute("INSERT INTO moderation_logs (report_id, moderator_id, action, target_type, target_id, details) VALUES (?,?,?,?,?,?)",
-                  (report_id, moderator_id, 'block', target_type, target_id, reason_text))
+                  (rep_for_log, moderator_id, 'block', target_type, target_id, reason_text))
         try:
             emit_to_user('account_blocked', {'reason': reason_text}, target_user_id)
         except Exception:
@@ -244,11 +256,20 @@ def resolve_report():
 
     # Комбинированное действие: заблокировать и удалить
     if action in ('ban_delete', 'block_delete'):
-        # удалить контент, если это пост или комментарий
+        # удалить контент
         if target_type == 'post':
             c.execute('DELETE FROM posts WHERE id=?', (target_id,))
         elif target_type == 'comment':
             c.execute('DELETE FROM comments WHERE id=?', (target_id,))
+        elif target_type == 'music':
+            c.execute('SELECT filename FROM music WHERE id=?', (target_id,))
+            rowf = c.fetchone()
+            if rowf and rowf['filename']:
+                try:
+                    os.remove(os.path.join(Config.MUSIC_FOLDER, rowf['filename']))
+                except Exception:
+                    pass
+            c.execute('DELETE FROM music WHERE id=?', (target_id,))
 
         if target_user_id:
             if forever or action == 'block_delete':
@@ -268,13 +289,16 @@ def resolve_report():
                     c.execute('UPDATE users SET is_blocked=1, block_reason=? WHERE id=?', (reason_text, target_user_id))
                     c.execute('INSERT INTO bans (user_id, until, reason, moderator_id) VALUES (?,?,?,?)', (target_user_id, until, ban_reason, moderator_id))
                     c.execute("INSERT INTO moderation_logs (report_id, moderator_id, action, target_type, target_id, details) VALUES (?,?,?,?,?,?)",
-                              (report_id, moderator_id, 'ban_delete', target_type, target_id, reason_text))
+                              (rep_for_log, moderator_id, 'ban_delete', target_type, target_id, reason_text))
                     try:
                         emit_to_user('account_blocked', {'reason': reason_text}, target_user_id)
                     except Exception:
                         pass
 
-    c.execute("UPDATE reports SET status='resolved' WHERE id=?", (report_id,))
+    if target_type == 'music':
+        c.execute("UPDATE music_reports SET status='resolved' WHERE id=?", (report_id,))
+    else:
+        c.execute("UPDATE reports SET status='resolved' WHERE id=?", (report_id,))
     conn.commit(); conn.close()
     # AJAX
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':

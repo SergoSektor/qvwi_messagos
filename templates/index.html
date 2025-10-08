@@ -35,6 +35,7 @@
         </div>
 
         <form id="login-form" class="form-container" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-group">
                 <input type="text" name="username" placeholder="Имя пользователя" required>
             </div>
@@ -46,6 +47,7 @@
         </form>
 
         <form id="register-form" class="form-container" method="post" style="display:none;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-group">
                 <input type="text" name="username" placeholder="Имя пользователя" required>
             </div>

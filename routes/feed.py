@@ -78,6 +78,12 @@ def add_comment(post_id):
     if 'user_id' not in session:
         return redirect(url_for('auth.index'))
     content = request.form.get('comment','').strip()
+    try:
+        content = content.replace('\x00','')
+        if len(content) > 3000:
+            content = content[:3000]
+    except Exception:
+        pass
     if not content:
         return redirect(url_for('feed.feed'))
     conn = get_db(); c = conn.cursor()
@@ -107,6 +113,14 @@ def create_post():
         return redirect(url_for('auth.index'))
     
     content = request.form['content']
+    # Санитайзинг текста поста (экранируется в шаблоне, но чистим на входе от опасных тегов)
+    try:
+        # Простая зачистка: убираем управляющие символы и обрезаем длину
+        content = content.replace('\x00','').strip()
+        if len(content) > 5000:
+            content = content[:5000]
+    except Exception:
+        pass
     user_id = session['user_id']
     
     conn = get_db()

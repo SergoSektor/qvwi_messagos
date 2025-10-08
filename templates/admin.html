@@ -7,7 +7,7 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root { --bg:#f0f2f5; --panel:#ffffff; --card:#f8f9fb; --muted:#6b7280; --text:#1f2937; --accent:#4a76a8; --danger:#e11d48; --ok:#16a34a; --warning:#f59e0b; --table-border:#e5e7eb; --row-hover: rgba(0,0,0,0.04); }
-        .dark-theme { --bg:#0f172a; --panel:#111827; --card:#0b1220; --muted:#9ca3af; --text:#e5e7eb; --accent:#4a76a8; --danger:#e74c3c; --ok:#22c55e; --warning:#f59e0b; --table-border:rgba(255,255,255,0.06); --row-hover: rgba(255,255,255,0.04); }
+        .dark-theme { --bg:#101418; --panel:#161b22; --card:#0f1720; --muted:#9da3ae; --text:#e6edf3; --accent:#4a76a8; --danger:#e74c3c; --ok:#22c55e; --warning:#f59e0b; --table-border:rgba(255,255,255,0.08); --row-hover: rgba(255,255,255,0.06); }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; background: var(--bg); color: var(--text); }
         
         /* Боковая панель */
@@ -79,7 +79,7 @@
             width: 60px;
             height: 60px;
             border-radius: 50%;
-            background: var(--primary);
+            background: var(--accent);
             color: white;
             border: none;
             cursor: pointer;
@@ -89,7 +89,7 @@
             box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
             z-index: 1000;
             font-size: 1.4rem;
-            transition: var(--transition);
+            transition: transform .2s ease, box-shadow .2s ease;
         }
 
         .theme-toggle:hover {
@@ -141,6 +141,8 @@
                 </a>
             </div>
     </div>
+    <script src="{{ url_for('static', filename='js/nowbar.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/device.js') }}"></script>
 
     <div class="content">
         <div class="admin-container">
@@ -224,15 +226,18 @@
                                     <i class="fas fa-edit"></i> Редактировать
                                 </button>
                                 <form method="POST" action="{{ url_for('admin.delete_user', user_id=u[0]) }}" style="display:inline;" onsubmit="return confirm('Удалить пользователя?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <button type="submit" class="btn btn-danger"><i class="fas fa-trash"></i> Удалить</button>
                                 </form>
                                 {% if u[5] != 'admin' %}
                                 <form method="POST" action="{{ url_for('admin.make_admin', user_id=u[0]) }}" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <button type="submit" class="btn btn-success"><i class="fas fa-user-shield"></i> Сделать админом</button>
                                 </form>
                                 {% endif %}
                                 {% if u[8] %}
                                     <form method="POST" action="{{ url_for('admin.toggle_block', user_id=u[0]) }}" style="display:inline;">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <button type="submit" class="btn btn-warning"><i class="fas fa-unlock"></i> Разблокировать</button>
                                     </form>
                                 {% else %}
@@ -251,6 +256,7 @@
                     <div class="control-card">
                         <h3>Общие настройки</h3>
                         <form class="admin-form" method="POST" action="{{ url_for('admin.admin_settings') }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <div class="form-group">
                                 <label>Режим регистрации</label>
                                 <select name="registration_mode">
@@ -273,6 +279,7 @@
                     <div class="control-card">
                         <h3>Приглашения</h3>
                         <form class="admin-form" method="POST" action="{{ url_for('admin.admin_invites') }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <div class="form-group">
                                 <label>Сколько использований у кода?</label>
                                 <input type="number" name="uses" value="1" min="1">
@@ -565,7 +572,7 @@
                 fd.append('ban_reason', document.getElementById('rep-reason').value);
                 if (document.getElementById('rep-forever').checked) fd.append('forever','1');
                 fd.append('action', payload);
-                const resp = await fetch('/admin/report/resolve', { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} });
+                const resp = await fetch('/admin/report/resolve', { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest','X-CSRFToken': '{{ csrf_token }}' } });
                 const ans = await resp.json().catch(()=>({success:false}));
                 if (ans && ans.success){ toast('Действие выполнено'); reportModal.style.display = 'none'; location.reload(); }
                 else toast('Не удалось применить действие');
@@ -590,7 +597,7 @@
             f.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const fd = new FormData(f);
-                const res = await fetch(f.action, { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} });
+                const res = await fetch(f.action, { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest','X-CSRFToken':'{{ csrf_token }}' } });
                 const data = await res.json().catch(()=>({success:false}));
                 if (data && data.success){
                     // удалим строку из таблицы
@@ -638,7 +645,7 @@
                 fd.append('reason', reason);
                 fd.append('minutes', minutes);
                 if (forever) fd.append('forever','1');
-                fetch(`/admin/ban_user/${targetUserId}`, { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} })
+                fetch(`/admin/ban_user/${targetUserId}`, { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest','X-CSRFToken': '{{ csrf_token }}' } })
                     .then(r=>r.json().catch(()=>({success:false})))
                     .then(ans=>{
                         if (ans && (ans.success || ans === true)) { modalBackdrop.style.display = 'none'; location.reload(); }
