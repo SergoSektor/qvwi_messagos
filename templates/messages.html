@@ -8,6 +8,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
     <style>
+        @import url('{{ url_for('static', filename='css/hud.css') }}');
         /* Стили остаются без изменений */
         :root {
             --bg-primary: #f0f2f5;
@@ -203,6 +204,7 @@
             display: flex; 
             flex-direction: column; 
             height: 100%; 
+            overflow-y: auto;
         }
         
         .chat-header { 
@@ -210,6 +212,7 @@
             align-items: center; 
             padding: 20px; 
             border-bottom: 1px solid var(--border-color); 
+            position: sticky; top:0; z-index:5; background: var(--chat-bg);
         }
         
         .chat-avatar {
@@ -277,11 +280,7 @@
         
         .chat-messages { 
             flex: 1; 
-            padding: 25px; 
-            overflow-y: auto; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 20px;
+            padding: 20px; 
         }
         
         .message { 
@@ -290,6 +289,9 @@
             border-radius: 18px; 
             position: relative; 
         }
+        .message a{ color:#4a76a8; word-break: break-all; }
+        .message-file{ display:flex; align-items:center; gap:8px; }
+        .message-file i{ color:#4a76a8; }
         
         .sent { 
             align-self: flex-end; 
@@ -334,11 +336,11 @@
         }
         
         .chat-input { 
-            padding: 20px; 
-            border-top: 1px solid var(--border-color); 
             display: flex; 
+            padding: 15px; 
+            border-top: 1px solid var(--border-color); 
             align-items: center; 
-            gap: 10px;
+            position: sticky; bottom:0; z-index:5; background: var(--chat-bg);
         }
         
         .chat-input textarea { 
@@ -525,6 +527,7 @@
             .nav a { padding: 10px 12px; }
             .message { font-size: 0.95rem; }
             .chat-actions { gap: 6px; }
+            .p-seek, .p-vol{ height: 6px; }
         }
     </style>
 </head>
@@ -1233,6 +1236,7 @@
                 formData.append('file', file);
                 formData.append('receiver_id', friendId);
                 formData.append('content', messageInput.value); // Добавляем текст сообщения
+                formData.append('csrf_token', '{{ csrf_token }}');
                 
                 // Показываем индикатор загрузки
                 const originalButtonText = sendButton.innerHTML;
@@ -1241,7 +1245,8 @@
                 
                 fetch('/upload_message_file', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -1293,7 +1298,8 @@
             formData.append('file', file);
             formData.append('receiver_id', friendId);
             formData.append('content', messageInput.value);
-            const resp = await fetch('/upload_message_file', { method: 'POST', body: formData });
+            formData.append('csrf_token', '{{ csrf_token }}');
+            const resp = await fetch('/upload_message_file', { method: 'POST', body: formData, headers: { 'X-CSRFToken': '{{ csrf_token }}' } });
             if (!resp.ok) { showToast('Ошибка при загрузке файла'); return; }
             const data = await resp.json();
             if (!data.success) { showToast('Ошибка: ' + (data.error||'Неизвестная')); return; }

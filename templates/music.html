@@ -4,6 +4,7 @@
     <title>Музыка</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        @import url('{{ url_for('static', filename='css/hud.css') }}');
         :root{ --bg:#f0f2f5; --panel:#ffffff; --card:#f8f9fb; --muted:#6b7280; --text:#1f2937; --accent:#4a76a8; --danger:#e11d48; --table-border:#e5e7eb; }
         .dark-theme { --bg:#101418; --panel:#161b22; --card:#0f1720; --muted:#9da3ae; --text:#e6edf3; --accent:#4a76a8; --danger:#e74c3c; --table-border:rgba(255,255,255,0.08); }
         body{font-family:Segoe UI,Tahoma,Arial;background:var(--bg);color:var(--text);margin:0}
@@ -22,7 +23,11 @@
         .nowbar-inner{display:flex;align-items:center;gap:12px;padding:10px 16px}
         .nowbar .title{font-weight:600;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .nowbar .p-seek-small{flex:1}
-        .nowbar .p-seek-small input{width:100%}
+        .nowbar .p-seek-small input{width:100%;appearance:none;-webkit-appearance:none;height:6px;background:var(--table-border);border-radius:999px}
+        .nowbar .p-seek-small input::-webkit-slider-runnable-track{height:6px;background:var(--table-border);border-radius:999px}
+        .nowbar .p-seek-small input::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);border:none;margin-top:-3px}
+        .nowbar .p-seek-small input::-moz-range-track{height:6px;background:var(--table-border);border-radius:999px}
+        .nowbar .p-seek-small input::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--accent);border:none}
         .wrap{max-width:980px;margin:0 auto}
         .panel{background:var(--panel);border:1px solid var(--table-border);border-radius:12px;padding:16px}
         .grid{display:grid;gap:10px}
@@ -39,12 +44,20 @@
         .p-title{font-weight:600;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .p-time{font-size:12px;color:var(--muted);min-width:96px;text-align:right}
         .p-progress{flex:1;display:flex;align-items:center}
-        .p-seek{appearance:none;-webkit-appearance:none;width:100%;height:6px;background:rgba(0,0,0,.15);border-radius:6px;outline:none;cursor:pointer}
+        .p-seek{appearance:none;-webkit-appearance:none;width:100%;height:6px;background:var(--table-border);border-radius:999px;outline:none;cursor:pointer}
         .p-seek::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);border:none;margin-top:-3px}
         .p-seek::-moz-range-thumb{width:12px;height:12px;border:none;border-radius:50%;background:var(--accent)}
-        .p-vol{width:90px}
+        .p-vol{width:90px;appearance:none;-webkit-appearance:none;height:6px;background:var(--table-border);border-radius:999px}
         .p-vol::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);border:none}
         .p-vol::-moz-range-thumb{width:12px;height:12px;border:none;border-radius:50%;background:var(--accent)}
+        @media (max-width: 900px){ .nowbar{left:0} }
+        @media (max-width: 700px){
+            .player{ gap:8px; }
+            .p-title{ max-width:160px; }
+            .p-time{ min-width:72px; }
+            .p-vol{ width:70px; }
+            .nav a{ padding:12px; }
+        }
 
         /* Модалка жалобы */
         .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:3000}

@@ -5,6 +5,7 @@
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        @import url('{{ url_for('static', filename='css/hud.css') }}');
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root { --bg:#f0f2f5; --panel:#ffffff; --card:#f8f9fb; --muted:#6b7280; --text:#1f2937; --accent:#4a76a8; --danger:#e11d48; --ok:#16a34a; --warning:#f59e0b; --table-border:#e5e7eb; --row-hover: rgba(0,0,0,0.04); }
         .dark-theme { --bg:#101418; --panel:#161b22; --card:#0f1720; --muted:#9da3ae; --text:#e6edf3; --accent:#4a76a8; --danger:#e74c3c; --ok:#22c55e; --warning:#f59e0b; --table-border:rgba(255,255,255,0.08); --row-hover: rgba(255,255,255,0.06); }
@@ -24,7 +25,7 @@
         
         /* Основной контент */
         .content { flex: 1; margin-left: 280px; padding: 30px; }
-        .admin-container { background: var(--panel); padding: 30px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+        .admin-container { background: var(--panel); padding: 30px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); max-width:1280px; margin:0 auto; }
         .admin-container h1 { margin-bottom: 25px; color: var(--text); }
         
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 25px; margin-bottom: 35px; }
@@ -40,10 +41,11 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         
-        .user-table { width: 100%; border-collapse: collapse; }
+        .user-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         .user-table th, .user-table td { padding: 15px; text-align: left; border-bottom: 1px solid var(--table-border); }
         .user-table th { background: var(--card); font-weight: 600; color: var(--text); }
         .user-table tr:hover { background: var(--row-hover); }
+        .user-table td{ overflow:hidden; text-overflow:ellipsis; }
         
         .action-buttons a, .action-buttons button { display: inline-flex; gap:8px; padding: 8px 14px; margin-right: 8px; border-radius: 8px; text-decoration: none; font-size: 0.92rem; border: none; cursor: pointer; align-items:center; justify-content:center; }
         .btn { background: var(--accent); color: white; }
@@ -57,13 +59,39 @@
         .admin-form textarea, 
         .admin-form select { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 16px; }
         .admin-form button { background: #4a76a8; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; }
+        .system-controls{ display:grid; grid-template-columns: repeat(3, minmax(280px,1fr)); gap:16px; align-items:start; }
+        @media (max-width: 1200px){ .system-controls{ grid-template-columns: repeat(2, minmax(280px,1fr)); } }
+        @media (max-width: 800px){ .system-controls{ grid-template-columns: 1fr; } }
+        .user-table th, .user-table td{ vertical-align: middle; }
+        .user-table th, .user-table td{ white-space: nowrap; }
+        .user-table .col-message{ white-space: normal; max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
+        /* Активные коды: сжимаем колонки, чтобы ничего не вылезало */
+        .codes-table th, .codes-table td{ padding:12px 10px; }
+        .codes-table th:nth-child(1){ width:22%; } /* Код */
+        .codes-table th:nth-child(2){ width:16%; text-align:center; } /* Осталось */
+        .codes-table th:nth-child(3){ width:22%; } /* Создан */
+        .codes-table th:nth-child(4){ width:22%; } /* Действует до */
+        .codes-table th:nth-child(5){ width:9%; } /* Статус */
+        .codes-table th:nth-child(6){ width:9%; } /* Действие */
+        .codes-table td:nth-child(2){ text-align:center; }
+        .codes-table td:nth-child(6){ text-align:right; }
+        .codes-table td:nth-child(1){ font-family: monospace; white-space: nowrap; overflow:hidden; text-overflow:ellipsis; }
+        @media (max-width: 1180px){
+            .codes-table th, .codes-table td{ padding:10px 8px; font-size: .95rem; }
+            .codes-table th:nth-child(1){ width:24%; }
+            .codes-table th:nth-child(2){ width:14%; }
+            .codes-table th:nth-child(3){ width:22%; }
+            .codes-table th:nth-child(4){ width:22%; }
+            .codes-table th:nth-child(5){ width:9%; }
+            .codes-table th:nth-child(6){ width:9%; }
+        }
         
         .system-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; }
         .control-card { background: var(--card); padding: 25px; border-radius: 12px; }
         .control-card h3 { margin-bottom: 15px; color: var(--text); }
 
         /* Модалка причины блокировки */
-        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 3000; }
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 5000; }
         .modal { width: min(520px, 94%); background: var(--panel); color: var(--text); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.35); border: 1px solid var(--table-border); }
         .modal-header { padding: 16px 18px; border-bottom: 1px solid var(--table-border); font-weight: 700; }
         .modal-body { padding: 16px 18px; }
@@ -140,6 +168,17 @@
                     <i class="fas fa-sign-out-alt"></i> Выйти
                 </a>
             </div>
+    </div>
+    <!-- Модалка подтверждения удаления инвайта -->
+    <div id="invite-confirm" style="display:none;position:fixed;inset:0;z-index:4000;align-items:center;justify-content:center;background:rgba(0,0,0,.55)">
+        <div style="width:min(420px,92%);background:var(--panel);color:var(--text);border:1px solid var(--table-border);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--table-border);font-weight:700">Подтверждение</div>
+            <div style="padding:16px">Удалить код приглашения <span id="inv-code" style="font-family:monospace"></span>?</div>
+            <div style="padding:12px 16px;border-top:1px solid var(--table-border);display:flex;gap:8px;justify-content:flex-end">
+                <button class="btn" id="inv-cancel" style="background:transparent;color:var(--text);border:1px solid var(--table-border)">Отмена</button>
+                <button class="btn btn-danger" id="inv-ok">Удалить</button>
+            </div>
+        </div>
     </div>
     <script src="{{ url_for('static', filename='js/nowbar.js') }}"></script>
     <script src="{{ url_for('static', filename='js/device.js') }}"></script>
@@ -222,7 +261,7 @@
                                 {% endif %}
                             </td>
                             <td class="action-buttons">
-                                <button type="button" class="btn js-edit" data-user-id="{{ u[0] }}" data-username="{{ u[1] }}" data-email="{{ u[2] }}">
+                                <button type="button" class="btn js-edit" data-user-id="{{ u[0] }}" data-username="{{ u[1] }}" data-email="{{ u[2] }}" data-blocked="{{ u[8] }}">
                                     <i class="fas fa-edit"></i> Редактировать
                                 </button>
                                 <form method="POST" action="{{ url_for('admin.delete_user', user_id=u[0]) }}" style="display:inline;" onsubmit="return confirm('Удалить пользователя?');">
@@ -281,11 +320,81 @@
                         <form class="admin-form" method="POST" action="{{ url_for('admin.admin_invites') }}">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <div class="form-group">
-                                <label>Сколько использований у кода?</label>
+                                <label>Количество использований</label>
                                 <input type="number" name="uses" value="1" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label>Срок действия (0 — без срока)</label>
+                                <div style="display:flex; gap:10px;">
+                                    <input type="number" name="expires_value" value="0" min="0" style="max-width:120px">
+                                    <select name="expires_unit" style="max-width:140px">
+                                        <option value="hours">Часы</option>
+                                        <option value="days">Дни</option>
+                                    </select>
+                                </div>
                             </div>
                             <button type="submit" class="btn">Сгенерировать код приглашения</button>
                         </form>
+                        {% if invites %}
+                        <div style="margin-top:15px">
+                            <h4 style="margin-bottom:10px">Активные коды</h4>
+                            <table class="user-table codes-table">
+                                <thead>
+                                    <tr><th>Код</th><th>Осталось использований</th><th>Создан</th><th>Действует до</th><th>Статус</th><th></th></tr>
+                                </thead>
+                                <tbody>
+                                    {% for inv in invites %}
+                                    <tr>
+                                        <td style="font-family:monospace">{{ inv['code'] }}</td>
+                                        <td>{{ inv['uses_left'] }}</td>
+                                        <td>{{ inv['created_at'] }}</td>
+                                        <td>{{ inv['expires_at'] or '—' }}</td>
+                                        <td>{% if inv['expired'] %}<span style="color:#e74c3c">Просрочен</span>{% else %}Активен{% endif %}</td>
+                                        <td>
+                                            <form method="POST" action="{{ url_for('admin.admin_invites_revoke', code=inv['code']) }}">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                <button class="btn btn-danger js-invite-revoke" type="button">Удалить</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="control-card">
+                        <h3>Заявки на приглашение</h3>
+                        {% if invite_requests %}
+                        <table class="user-table">
+                            <thead>
+                                <tr><th>ID</th><th>Email</th><th>Сообщение</th><th>Создана</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                {% for r in invite_requests %}
+                                <tr>
+                                    <td>{{ r['id'] }}</td>
+                                    <td>{{ r['email'] or '—' }}</td>
+                                    <td>{{ r['message'] or '—' }}</td>
+                                    <td>{{ r['created_at'] }}</td>
+                                    <td style="display:flex; gap:8px;">
+                                        <form method="POST" action="{{ url_for('admin.admin_invites_approve', req_id=r['id']) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button class="btn" type="submit">Одобрить</button>
+                                        </form>
+                                        <form method="POST" action="{{ url_for('admin.admin_invites_reject', req_id=r['id']) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button class="btn btn-danger" type="submit">Отклонить</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p style="color:var(--muted)">Нет новых заявок</p>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -491,15 +600,27 @@
             <div class="modal">
                 <div class="modal-header">Редактировать пользователя</div>
                 <form class="modal-body" id="edit-form" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <div style=\"margin-bottom:8px; color: var(--muted);\">ID: <span id=\"edit-id\"></span></div>
                     <div style=\"display:grid; gap:10px;\">
                         <input type=\"text\" id=\"edit-username\" name=\"username\" placeholder=\"Имя пользователя\">
                         <input type=\"email\" id=\"edit-email\" name=\"email\" placeholder=\"Email\">
+                        <div>
+                            <label style=\"display:block; margin-bottom:6px; color:var(--muted);\">Роль</label>
+                            <select id=\"edit-role\" name=\"role\" style=\"width:100%; padding:10px; border:1px solid var(--table-border); border-radius:8px; background:var(--card); color:var(--text);\">
+                                <option value=\"user\">Пользователь</option>
+                                <option value=\"moderator\">Модератор</option>
+                                <option value=\"admin\">Администратор</option>
+                            </select>
+                        </div>
                     </div>
                 </form>
                 <div class="modal-footer">
                     <button type="button" class="btn" id="edit-cancel">Отмена</button>
                     <button type="button" class="btn" id="edit-save">Сохранить</button>
+                    <span style=\"flex:1\"></span>
+                    <button type=\"button\" class=\"btn btn-warning\" id=\"edit-block\">Заблокировать…</button>
+                    <button type=\"button\" class=\"btn btn-success\" id=\"edit-unblock\" style=\"display:none;\">Снять блокировку</button>
                 </div>
             </div>`;
         document.body.appendChild(editModal);
@@ -592,12 +713,40 @@
             h.appendChild(el); setTimeout(()=>el.remove(), 3000);
         }
 
+        // Красивая модалка удаления инвайта
+        (function(){
+            const dlg = document.getElementById('invite-confirm');
+            const codeEl = document.getElementById('inv-code');
+            let pendingForm = null;
+            function open(form){ pendingForm = form; const code = (form.closest('tr')?.querySelector('td:nth-child(1)')?.textContent||'').trim(); codeEl.textContent = code; dlg.style.display='flex'; }
+            function close(){ dlg.style.display='none'; pendingForm=null; }
+            document.querySelectorAll('.js-invite-revoke').forEach(btn=>{ btn.addEventListener('click', ()=> open(btn.form)); });
+            document.getElementById('inv-cancel').addEventListener('click', close);
+            document.getElementById('inv-ok').addEventListener('click', async ()=>{
+                if (!pendingForm) return close();
+                const actionUrl = pendingForm.getAttribute('action');
+                const fd = new FormData(pendingForm); if (!fd.has('csrf_token')) fd.append('csrf_token','{{ csrf_token }}');
+                try{
+                    const r = await fetch(actionUrl, { method:'POST', body: fd, headers:{'X-Requested-With':'XMLHttpRequest','X-CSRFToken':'{{ csrf_token }}'} });
+                    if (r.ok){
+                        const tr = pendingForm.closest('tr'); tr && tr.remove(); toast('Код удалён');
+                    } else { toast('Не удалось удалить код'); }
+                } catch(e){ toast('Ошибка сети'); }
+                close();
+            });
+            dlg.addEventListener('click', (e)=>{ if (e.target===dlg) close(); });
+        })();
+
         // AJAX для модерации жалоб (форма в строке)
         document.querySelectorAll('#moderation-tab form[action$="/admin/report/resolve"]').forEach(f => {
             f.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const fd = new FormData(f);
-                const res = await fetch(f.action, { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest','X-CSRFToken':'{{ csrf_token }}' } });
+                // Добавим csrf для надёжности (заголовок уже есть)
+                if (!fd.has('csrf_token')) fd.append('csrf_token', '{{ csrf_token }}');
+                // Важно: из-за <select name="action"> свойство f.action будет ссылкой на select, а не URL
+                const actionUrl = f.getAttribute('action');
+                const res = await fetch(actionUrl, { method:'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest','X-CSRFToken':'{{ csrf_token }}' } });
                 const data = await res.json().catch(()=>({success:false}));
                 if (data && data.success){
                     // удалим строку из таблицы
@@ -626,9 +775,15 @@
                 const id = btn.dataset.userId;
                 const name = btn.dataset.username || '';
                 const email = btn.dataset.email || '';
+                const role = btn.dataset.role || 'user'; // Получаем текущую роль
+                const blocked = (btn.dataset.blocked === '1');
                 document.getElementById('edit-id').textContent = id;
                 document.getElementById('edit-username').value = name;
                 document.getElementById('edit-email').value = email;
+                const roleSel = document.getElementById('edit-role'); if (roleSel) roleSel.value = role; // Устанавливаем текущую роль
+                // показать нужную кнопку
+                const ub = document.getElementById('edit-unblock'); const bl = document.getElementById('edit-block');
+                if (ub && bl){ ub.style.display = blocked ? 'inline-flex' : 'none'; bl.style.display = blocked ? 'none' : 'inline-flex'; }
                 const form = document.getElementById('edit-form');
                 form.action = `/admin/update_user/${id}`;
                 editModal.style.display = 'flex';
@@ -656,6 +811,21 @@
             if (e.target.id === 'edit-cancel') editModal.style.display = 'none';
             if (e.target.id === 'edit-save') {
                 document.getElementById('edit-form').submit();
+            }
+            if (e.target.id === 'edit-block'){
+                const uid = document.getElementById('edit-id').textContent;
+                targetUserId = uid;
+                document.getElementById('ban-user').textContent = document.getElementById('edit-username').value || ('ID ' + uid);
+                // показываем блокировку поверх редактирования
+                editModal.style.display = 'flex';
+                modalBackdrop.style.display = 'flex';
+                modalBackdrop.style.zIndex = 6000;
+            }
+            if (e.target.id === 'edit-unblock'){
+                const uid = document.getElementById('edit-id').textContent;
+                const fd = new FormData(); fd.append('reason','');
+                fetch(`/admin/toggle_block/${uid}`, { method:'POST', body: fd, headers:{'X-Requested-With':'XMLHttpRequest','X-CSRFToken':'{{ csrf_token }}'} })
+                    .then(()=> location.reload());
             }
         });
     </script>

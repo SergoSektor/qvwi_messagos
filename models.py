@@ -82,7 +82,17 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS invites (
                  code TEXT PRIMARY KEY,
                  uses_left INTEGER NOT NULL DEFAULT 1,
-                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                 expires_at DATETIME)''')
+
+    # Миграция: добавляем expires_at, если его нет
+    c.execute("PRAGMA table_info(invites)")
+    invite_cols = [col[1] for col in c.fetchall()]
+    if 'expires_at' not in invite_cols:
+        try:
+            c.execute("ALTER TABLE invites ADD COLUMN expires_at DATETIME")
+        except sqlite3.OperationalError:
+            pass
 
     # Лайки и комментарии к постам
     c.execute('''CREATE TABLE IF NOT EXISTS likes (
@@ -178,6 +188,16 @@ def init_db():
                   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                   FOREIGN KEY(report_id) REFERENCES reports(id),
                   FOREIGN KEY(moderator_id) REFERENCES users(id))''')
+
+    # Заявки на приглашение (для закрытой регистрации)
+    c.execute('''CREATE TABLE IF NOT EXISTS invite_requests (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  email TEXT,
+                  message TEXT,
+                  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                  processed_at DATETIME
+                )''')
     
     # Тестовые пользователи с ролями
     users = [

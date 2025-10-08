@@ -57,9 +57,32 @@
             <div class="form-group">
                 <input type="email" name="email" placeholder="Email (необязательно)">
             </div>
+            {% set reg_mode = settings.get('registration_mode') if settings is defined else None %}
+            {% if reg_mode == 'invite' %}
+            <div class="form-group">
+                <input type="text" name="invite_code" placeholder="Код приглашения" required>
+            </div>
+            {% endif %}
             <input type="hidden" name="action" value="register">
             <button type="submit">Зарегистрироваться</button>
         </form>
+        {% if reg_mode == 'closed' %}
+        <div class="form-container" style="display:block; padding-top:10px;">
+            <form method="post" action="{{ url_for('auth.request_invite') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="form-group" style="background:#fff3cd;color:#7a5b00;border:1px solid #ffeeba;padding:12px;border-radius:8px;">
+                    Регистрация закрыта. Оставьте заявку — пришлём приглашение на почту.
+                </div>
+                <div class="form-group">
+                    <input type="email" name="email" placeholder="Ваш email" required>
+                </div>
+                <div class="form-group">
+                    <input type="text" name="message" placeholder="Немного о себе (необязательно)">
+                </div>
+                <button type="submit">Отправить заявку</button>
+            </form>
+        </div>
+        {% endif %}
     </div>
 
     <script>

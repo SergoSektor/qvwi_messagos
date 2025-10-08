@@ -109,6 +109,7 @@ def upload_message_file():
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
         
+    # CSRF для AJAX: берём из заголовка/поля формы (прошёл общий before_request)
     file = request.files['file']
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
@@ -116,6 +117,8 @@ def upload_message_file():
     receiver_id = request.form.get('receiver_id')
     if not receiver_id:
         return jsonify({'error': 'No receiver specified'}), 400
+    # Текст к файлу (если отправлен)
+    content_text = request.form.get('content', '')
         
     # Разрешаем любые типы файлов (ограничение только по размеру через MAX_CONTENT_LENGTH)
         
@@ -134,7 +137,7 @@ def upload_message_file():
         c = conn.cursor()
         c.execute(
             "INSERT INTO messages (sender_id, receiver_id, content, file_path) VALUES (?, ?, ?, ?)",
-            (session['user_id'], receiver_id, '', unique_filename)
+            (session['user_id'], receiver_id, content_text or '', unique_filename)
         )
         conn.commit()
         message_id = c.lastrowid

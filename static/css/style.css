@@ -22,6 +22,10 @@
   --warning-color: #f39c12;
   --online-color: #2ecc71;
   --offline-color: #95a5a6;
+  /* sliders */
+  --slider-track: var(--border-color);
+  --slider-thumb: var(--primary-color);
+  --nav-active-bg: rgba(74,118,168,.12);
 }
 
 .dark-theme {
@@ -46,6 +50,9 @@
   --warning-color: #f39c12;
   --online-color: #2ecc71;
   --offline-color: #7f8c8d;
+  --slider-track: #2a2f36;
+  --slider-thumb: var(--primary-color);
+  --nav-active-bg-dark: rgba(255,255,255,.08);
 }
 
 /* Base Styles */
@@ -1014,3 +1021,11 @@ body.device-mobile .post-actions button{ padding:8px 10px; }
 
 body.device-tablet .sidebar{ width:220px; }
 body.device-tablet .content{ margin-left:220px; }
+
+/* Унифицированные стили ползунков (прогресс/громкость) */
+input[type="range"].ui-slider,
+.ui-range { appearance:none; -webkit-appearance:none; height:6px; background:var(--slider-track); border-radius:999px; }
+input[type="range"].ui-slider::-webkit-slider-runnable-track{ height:6px; background:var(--slider-track); border-radius:999px }
+input[type="range"].ui-slider::-webkit-slider-thumb{ appearance:none; -webkit-appearance:none; width:12px; height:12px; background:var(--slider-thumb); border:none; border-radius:50%; margin-top:-3px }
+input[type="range"].ui-slider::-moz-range-track{ height:6px; background:var(--slider-track); border-radius:999px }
+input[type="range"].ui-slider::-moz-range-thumb{ width:12px; height:12px; background:var(--slider-thumb); border:none; border-radius:50% }

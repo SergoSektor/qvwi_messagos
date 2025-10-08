@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, session, redirect, url_for, reques
 from models import get_db
 from config import Config
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import sqlite3
 from sockets import emit_to_user
 
@@ -47,6 +47,18 @@ def admin():
     c.execute("SELECT key, value FROM settings")
     settings = {row['key']: row['value'] for row in c.fetchall()}
 
+    # Заявки на инвайты
+    c.execute("SELECT id, email, message, status, created_at FROM invite_requests WHERE status='pending' ORDER BY created_at DESC")
+    invite_requests = c.fetchall()
+
+    # Список инвайтов
+    c.execute("""
+        SELECT code, uses_left, created_at, expires_at,
+               CASE WHEN expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP THEN 1 ELSE 0 END AS expired
+        FROM invites ORDER BY created_at DESC
+    """)
+    invites = c.fetchall()
+
     # Открытые жалобы для вкладки "Модерация контента"
     c.execute("SELECT id, target_type, target_id, reason, created_at FROM reports WHERE status='open' ORDER BY created_at DESC")
     reports = c.fetchall()
@@ -68,7 +80,9 @@ def admin():
                            users=users,
                            settings=settings,
                            reports=reports,
-                           music_reports=music_reports)
+                           music_reports=music_reports,
+                           invite_requests=invite_requests,
+                           invites=invites)
 
 @bp.route('/delete_user/<int:user_id>', methods=['POST'])
 def delete_user(user_id):
@@ -583,8 +597,60 @@ def admin_invites():
         return redirect(url_for('feed.feed'))
     import secrets
     code = secrets.token_urlsafe(8)
-    uses = int(request.form.get('uses', 1))
-    c.execute("INSERT INTO invites (code, uses_left) VALUES (?, ?)", (code, uses))
+    uses = max(1, int(request.form.get('uses', 1) or 1))
+    expires_value = int(request.form.get('expires_value', 0) or 0)
+    expires_unit = request.form.get('expires_unit', 'hours')
+    expires_at = None
+    if expires_value > 0:
+        if expires_unit == 'days':
+            expires_at = datetime.now() + timedelta(days=expires_value)
+        else:
+            expires_at = datetime.now() + timedelta(hours=expires_value)
+    c.execute("INSERT INTO invites (code, uses_left, expires_at) VALUES (?, ?, ?)", (code, uses, expires_at))
+    conn.commit(); conn.close()
+    return redirect(url_for('admin.admin'))
+
+@bp.route('/admin/invites/approve/<int:req_id>', methods=['POST'])
+def admin_invites_approve(req_id):
+    if 'user_id' not in session:
+        return redirect(url_for('auth.index'))
+    current_user_id = session['user_id']
+    conn = get_db(); c = conn.cursor()
+    c.execute("SELECT role FROM users WHERE id = ?", (current_user_id,))
+    if c.fetchone()['role'] != 'admin':
+        return redirect(url_for('feed.feed'))
+    import secrets
+    from datetime import datetime, timedelta
+    code = secrets.token_urlsafe(8)
+    expires_at = datetime.now() + timedelta(hours=48)
+    c.execute("INSERT INTO invites (code, uses_left, expires_at) VALUES (?,?,?)", (code, 1, expires_at))
+    c.execute("UPDATE invite_requests SET status='approved', processed_at=CURRENT_TIMESTAMP WHERE id=?", (req_id,))
+    conn.commit(); conn.close()
+    return redirect(url_for('admin.admin'))
+
+@bp.route('/admin/invites/reject/<int:req_id>', methods=['POST'])
+def admin_invites_reject(req_id):
+    if 'user_id' not in session:
+        return redirect(url_for('auth.index'))
+    current_user_id = session['user_id']
+    conn = get_db(); c = conn.cursor()
+    c.execute("SELECT role FROM users WHERE id = ?", (current_user_id,))
+    if c.fetchone()['role'] != 'admin':
+        return redirect(url_for('feed.feed'))
+    c.execute("UPDATE invite_requests SET status='rejected', processed_at=CURRENT_TIMESTAMP WHERE id=?", (req_id,))
+    conn.commit(); conn.close()
+    return redirect(url_for('admin.admin'))
+
+@bp.route('/admin/invites/revoke/<code>', methods=['POST'])
+def admin_invites_revoke(code):
+    if 'user_id' not in session:
+        return redirect(url_for('auth.index'))
+    current_user_id = session['user_id']
+    conn = get_db(); c = conn.cursor()
+    c.execute("SELECT role FROM users WHERE id = ?", (current_user_id,))
+    if c.fetchone()['role'] != 'admin':
+        return redirect(url_for('feed.feed'))
+    c.execute("DELETE FROM invites WHERE code=?", (code,))
     conn.commit(); conn.close()
     return redirect(url_for('admin.admin'))
 
@@ -599,9 +665,15 @@ def admin_update_user(user_id):
         return redirect(url_for('feed.feed'))
     new_username = request.form.get('username', '').strip()
     new_email = request.form.get('email', '').strip()
+    new_role = request.form.get('role')
     if new_username:
         c.execute("UPDATE users SET username=? WHERE id=?", (new_username, user_id))
     if new_email is not None:
         c.execute("UPDATE users SET email=? WHERE id=?", (new_email, user_id))
+    # Менять роль может только админ
+    c.execute("SELECT role FROM users WHERE id = ?", (current_user_id,))
+    cur_role = c.fetchone()['role']
+    if cur_role == 'admin' and new_role in ('user','moderator','admin'):
+        c.execute("UPDATE users SET role=? WHERE id=?", (new_role, user_id))
     conn.commit(); conn.close()
     return redirect(url_for('admin.admin'))

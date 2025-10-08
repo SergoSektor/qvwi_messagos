@@ -7,6 +7,7 @@
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        @import url('{{ url_for('static', filename='css/hud.css') }}');
         :root {
             --bg-primary: #f0f2f5;
             --bg-secondary: #fff;
@@ -610,6 +611,7 @@
                 </div>
                 
                 <form method="POST" enctype="multipart/form-data" class="edit-form" id="profile-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <div class="form-group">
                         <label for="bio">О себе:</label>
                         <textarea id="bio" name="bio" placeholder="Расскажите о себе...">{{ user.bio or '' }}</textarea>
@@ -661,6 +663,7 @@
                         
                         {% if is_own_profile %}
                         <form method="POST" action="{{ url_for('profile.delete_post', post_id=post[0]) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <button type="submit" class="delete-btn" onclick="return confirm('Удалить этот пост?')">
                                 <i class="fas fa-trash"></i>
                             </button>

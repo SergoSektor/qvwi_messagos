@@ -5,6 +5,11 @@
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        @import url('{{ url_for('static', filename='css/hud.css') }}');
+        @media (max-width: 900px){ .content{ margin-left:0; padding:12px; } }
+        @media (max-width: 600px){ .nav a{ padding:10px 12px; } }
+    </style>
 </head>
 <body>
     <div class="sidebar">
@@ -58,9 +63,8 @@
                 </div>
             {% else %}
                 <div class="empty-gallery">
-                    <i class="fas fa-camera"></i>
-                    <h3>Пока нет фотографий</h3>
-                    <p>Будьте первым, кто добавит аватарку!</p>
+                    <i class="fas fa-images"></i>
+                    <p>Нет фотографий для отображения.</p>
                 </div>
             {% endif %}
         </div>

@@ -13,8 +13,12 @@
       .nowbar .meta{color:var(--muted,#6b7280);font-size:12px}
       .nowbar .btn{background:var(--accent,#4a76a8);color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:36px;min-height:28px}
       .nowbar .range{height:6px}
-      .nowbar input[type="range"]{accent-color:var(--accent,#4a76a8)}
-      @media (max-width: 720px){ .nowbar{left:0} }
+      .nowbar input[type="range"]{accent-color:var(--accent,#4a76a8);appearance:none;-webkit-appearance:none;height:6px;background:var(--table-border,#e5e7eb);border-radius:999px}
+      .nowbar input[type="range"]::-webkit-slider-runnable-track{height:6px;background:var(--table-border,#e5e7eb);border-radius:999px}
+      .nowbar input[type="range"]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent,#4a76a8);border:none;margin-top:-3px}
+      .nowbar input[type="range"]::-moz-range-track{height:6px;background:var(--table-border,#e5e7eb);border-radius:999px}
+      .nowbar input[type="range"]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--accent,#4a76a8);border:none}
+      @media (max-width: 900px){ .nowbar{left:0} }
     `;
     const style = document.createElement('style'); style.id='nowbar-style'; style.textContent = css; document.head.appendChild(style);
   }
@@ -58,7 +62,8 @@
     bar.style.display = 'block';
     // Поднимаем контент, чтобы бар не перекрывал
     if (!document.body.dataset.nowbarPad){ document.body.dataset.nowbarPad = '0'; }
-    document.body.style.paddingTop = '48px';
+    // динамически учитываем высоту бара
+    document.body.style.paddingTop = Math.max(0, bar.offsetHeight) + 'px';
     // Иконка
     const icon = document.getElementById('nb-icon');
     if (icon) icon.className = a.paused ? 'fas fa-play' : 'fas fa-pause';
@@ -70,15 +75,22 @@
     // Вычисляем фактическую ширину и смещение сайдбара, если он есть
     const sb = document.querySelector('.sidebar');
     let left = 0;
-    if (sb){
-      const r = sb.getBoundingClientRect();
-      // если фиксирован слева — учитываем ширину; если скрыт на мобилке — будет ~0
-      left = Math.max(0, Math.round(r.left + r.width));
+    // На мобильных всегда тянем бар на всю ширину
+    const isMobile = document.body.classList.contains('device-mobile') || window.innerWidth <= 900;
+    if (!isMobile && sb){
+      const cs = window.getComputedStyle(sb);
+      // Учитываем сайдбар только если он действительно фиксирован у левого края
+      if (cs.position === 'fixed'){
+        const r = sb.getBoundingClientRect();
+        left = Math.max(0, Math.round(r.left + r.width));
+      }
     }
     if (left !== cachedLeft){
       bar.style.left = left + 'px';
       cachedLeft = left;
     }
+    // на всякий случай снимаем паддинг, если бар скрыт
+    if (bar.style.display === 'none'){ document.body.style.paddingTop = ''; }
   }
 
   function attachAudio(a){
