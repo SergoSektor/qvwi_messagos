@@ -175,3 +175,36 @@ def upload_message_file():
     except Exception as e:
         current_app.logger.error(f"File upload error: {str(e)}")
         return jsonify({'error': 'File upload failed'}), 500
+
+
+@bp.route('/api/messages/delete', methods=['POST'])
+def delete_message():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    msg_id = request.form.get('message_id') or request.json.get('message_id') if request.is_json else None
+    if not msg_id:
+        return jsonify({'success': False, 'error': 'message_id required'}), 400
+    try:
+        msg_id = int(msg_id)
+    except Exception:
+        return jsonify({'success': False, 'error': 'bad id'}), 400
+    conn = get_db(); c = conn.cursor()
+    c.execute('SELECT sender_id, receiver_id FROM messages WHERE id=?', (msg_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close(); return jsonify({'success': False, 'error': 'not found'}), 404
+    if row['sender_id'] != session['user_id']:
+        conn.close(); return jsonify({'success': False, 'error': 'forbidden'}), 403
+    # Мягкое удаление: очищаем файл и ставим специальный контент
+    c.execute('UPDATE messages SET content=?, file_path=NULL WHERE id=?', ('[deleted]', msg_id))
+    conn.commit()
+    sender_id = row['sender_id']; receiver_id = row['receiver_id']
+    conn.close()
+    # Оповестим собеседников через сокет
+    try:
+        from app import socketio
+        room_id = f"{min(int(sender_id), int(receiver_id))}_{max(int(sender_id), int(receiver_id))}"
+        socketio.emit('message_deleted', { 'id': msg_id }, room=room_id)
+    except Exception:
+        pass
+    return jsonify({'success': True})

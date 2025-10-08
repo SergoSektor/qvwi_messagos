@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 typing_status = {}
 pending_calls = {}  # Для хранения входящих вызовов
 active_calls = {}   # Для отслеживания активных звонков
+# Дополнительно: быстрый доступ по паре собеседников для вычисления длительности
+active_calls_by_pair = {}
 socketio_ref = None  # Глобальная ссылка на socketio
 
 def emit_to_user(event: str, data: dict, user_id: int):
@@ -436,6 +438,35 @@ def register_socket_handlers(socketio):
             'sender_id': sender_id
         }, room=str(receiver_id))
         logger.info(f"WebRTC answer sent from {sender_id} to {receiver_id}")
+        # Зафиксируем старт звонка для дальнейшего логирования длительности
+        try:
+            key = (min(sender_id, receiver_id), max(sender_id, receiver_id))
+            active_calls_by_pair[key] = { 'start_time': time.time(), 'a': sender_id, 'b': receiver_id }
+            # Системное сообщение о начале звонка
+            conn = get_db(); c = conn.cursor()
+            content = '[call] started'
+            c.execute(
+                "INSERT INTO messages (sender_id, receiver_id, content, file_path) VALUES (?, ?, ?, ?)",
+                (sender_id, receiver_id, content, None)
+            )
+            conn.commit()
+            msg_id = c.lastrowid
+            c.execute("SELECT username, avatar FROM users WHERE id = ?", (sender_id,))
+            srow = c.fetchone(); conn.close()
+            room_id = f"{min(sender_id, receiver_id)}_{max(sender_id, receiver_id)}"
+            emit('receive_message', {
+                'id': msg_id,
+                'sender_id': sender_id,
+                'receiver_id': receiver_id,
+                'content': content,
+                'file_path': None,
+                'file_name': None,
+                'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'username': srow['username'] if srow else '',
+                'avatar': srow['avatar'] if srow else None
+            }, room=room_id)
+        except Exception:
+            logger.exception('failed to log call start')
     
     @socketio.on('webrtc_ice_candidate')
     def handle_webrtc_ice_candidate(data):
@@ -476,6 +507,38 @@ def register_socket_handlers(socketio):
             'reason': reason
         }, room=str(receiver_id))
         logger.info(f"WebRTC call ended by {sender_id}, reason: {reason}")
+
+        # Попытка залогировать завершение звонка как системное сообщение с длительностью
+        try:
+            key = (min(sender_id, receiver_id), max(sender_id, receiver_id))
+            started = active_calls_by_pair.get(key, {}).get('start_time')
+            duration_sec = int(time.time() - started) if started else None
+            if key in active_calls_by_pair:
+                del active_calls_by_pair[key]
+            conn = get_db(); c = conn.cursor()
+            content = '[call] ended' + (f'|duration={duration_sec}' if duration_sec is not None else '')
+            c.execute(
+                "INSERT INTO messages (sender_id, receiver_id, content, file_path) VALUES (?, ?, ?, ?)",
+                (sender_id, receiver_id, content, None)
+            )
+            conn.commit()
+            message_id = c.lastrowid
+            c.execute("SELECT username, avatar FROM users WHERE id = ?", (sender_id,))
+            sender_data = c.fetchone(); conn.close()
+            room_id = f"{min(sender_id, receiver_id)}_{max(sender_id, receiver_id)}"
+            emit('receive_message', {
+                'id': message_id,
+                'sender_id': sender_id,
+                'receiver_id': receiver_id,
+                'content': content,
+                'file_path': None,
+                'file_name': None,
+                'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'username': sender_data['username'] if sender_data else '',
+                'avatar': sender_data['avatar'] if sender_data else None
+            }, room=room_id)
+        except Exception:
+            logger.exception('failed to log call end message')
         
         # Очищаем active_calls и pending_calls если есть соответствующий вызов
         for call_id, call_data in list(active_calls.items()):

@@ -291,34 +291,34 @@
             line-height: 1.35;
             box-shadow: 0 2px 6px rgba(0,0,0,.12);
         }
-        /* Цвета пузырей (темная тема как на примере) */
-        .message.sent{ background:#2a2d31; color:#e6edf3; border-bottom-right-radius:6px; }
-        .message.received{ background:#1f3348; color:#e6edf3; border-bottom-left-radius:6px; }
+        /* Цвета пузырей */
+        .message.sent{ background: var(--sent-message); color:#fff; border-bottom-right-radius:6px; }
+        .message.received{ background: var(--received-message); color: var(--text-primary); border-bottom-left-radius:6px; }
         /* Хвостики */
-        .message.sent::after{ content:""; position:absolute; left:-6px; right:auto; bottom:0; width:12px; height:12px; background: var(--received-message); clip-path: polygon(0 0, 0 100%, 100% 100%); border-bottom-left-radius:4px; }
-        .message.received::after{ content:""; position:absolute; right:-6px; left:auto; bottom:0; width:12px; height:12px; background: var(--sent-message); clip-path: polygon(0 100%, 100% 0, 100% 100%); border-bottom-right-radius:4px; }
+        .message.sent::after{ content:""; position:absolute; right:-6px; left:auto; bottom:0; width:12px; height:12px; background: var(--sent-message); clip-path: polygon(0 100%, 100% 0, 100% 100%); border-bottom-right-radius:4px; }
+        .message.received::after{ content:""; position:absolute; left:-6px; right:auto; bottom:0; width:12px; height:12px; background: var(--received-message); clip-path: polygon(0 0, 0 100%, 100% 100%); border-bottom-left-radius:4px; }
         .message a{ color:#76a9ff; word-break: break-all; }
         .message-file{ display:flex; align-items:center; gap:8px; }
         .message-file i{ color:#76a9ff; }
         .message-time{ font-size: 12px; opacity:.75; margin-top:4px; text-align:right; color:#cbd5e1; }
         
-        /* Поменяли стороны: свои слева, собеседник справа */
+        /* Стороны: свои справа, собеседник слева */
         .sent { 
-            align-self: flex-start; 
-            margin-right: auto; 
-            margin-left: 6px;
-            background: var(--received-message); 
-            color: var(--text-primary);
-            border-bottom-left-radius: 5px; 
-        }
-        
-        .received { 
             align-self: flex-end; 
             margin-left: auto; 
             margin-right: 6px;
             background: var(--sent-message); 
-            color: white; 
+            color: #fff;
             border-bottom-right-radius: 5px; 
+        }
+        
+        .received { 
+            align-self: flex-start; 
+            margin-right: auto; 
+            margin-left: 6px;
+            background: var(--received-message); 
+            color: var(--text-primary); 
+            border-bottom-left-radius: 5px; 
         }
         
         .message-text {
@@ -333,12 +333,12 @@
         }
         
         .sent .message-time { 
-            color: var(--text-secondary); 
+            text-align: right; 
+            color: rgba(255,255,255,0.85); 
         }
         
         .received .message-time { 
-            text-align: right; 
-            color: rgba(255,255,255,0.8); 
+            color: var(--text-secondary); 
         }
         
         .typing-indicator { 
@@ -775,6 +775,8 @@
             const selectModeBtn = document.getElementById('select-mode-btn');
             const copySelectedBtn = document.getElementById('copy-selected-btn');
             const shareSelectedBtn = document.getElementById('share-selected-btn');
+            // Для reply/forward/delete
+            let replyToId = null;
             
             // Переменные для WebRTC
             let localStream = null;
@@ -1073,6 +1075,23 @@
                 } catch(_e) {}
             });
             socket.on('join_response', (data) => { roomJoined = true; });
+            // Автопринятие при переходе из глобального баннера
+            try{
+                const q = new URLSearchParams(location.search);
+                const auto = q.get('auto');
+                const savedPeer = sessionStorage.getItem('autoAcceptPeerId');
+                const ts = parseInt(sessionStorage.getItem('autoAcceptTs')||'0',10);
+                const fresh = (Date.now() - ts) < 15000; // 15s окно
+                if (auto==='1' && fresh && savedPeer && String(friendId)===String(savedPeer)){
+                    // ждём оффер (или запросим переотправку)
+                    setTimeout(()=>{ if (!pendingOffer && friendId){ socket.emit('request_resend_offer', { sender_id: friendId }); }}, 400);
+                    // попытка автопринятия спустя 1с, если оффер уже пришёл
+                    setTimeout(async ()=>{
+                        if (pendingOffer) { document.getElementById('call-accept')?.click(); }
+                        try{ sessionStorage.removeItem('autoAcceptPeerId'); sessionStorage.removeItem('autoAcceptTs'); }catch(_e){}
+                    }, 1000);
+                }
+            }catch(_e){}
             // Если мы только вошли в чат и есть активный звонок — попросим инициатора переслать оффер
             setTimeout(()=>{
                 if (!peerConnection && friendId){ socket.emit('request_resend_offer', { sender_id: friendId }); }
@@ -1145,6 +1164,10 @@
             socket.on('receive_message', async function(data) {
                 if (data.id && window.__receivedIds && window.__receivedIds.has(data.id)) return;
                 if (data.id) window.__receivedIds.add(data.id);
+                // Удаляем временную заглушку по message_id, если была
+                try{
+                    if (data.id){ const stub = chatMessages.querySelector(`.message[data-msg-id="${data.id}"]`); stub && stub.remove(); }
+                }catch(_e){}
                 const isSent = data.sender_id == userId;
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
@@ -1163,11 +1186,28 @@
                         ${data.content ? `<div class="message-text">${data.content}</div>` : ''}
                     `;
                 } else {
-                    // Текстовое сообщение (возможная расшифровка)
-                    let textToShow = data.content || '';
-                    const dec = await tryDecryptText(textToShow);
-                    if (dec !== null) textToShow = dec;
-                    contentHtml = `<div class="message-text">${textToShow}</div>`;
+                    // Спец-сообщения звонков
+                    if (data.content && data.content.startsWith('[call]')){
+                        const parts = data.content.split('|');
+                        const type = parts[0].includes('ended') ? 'ended' : 'started';
+                        let dur = '';
+                        if (type==='ended'){
+                            const kv = (parts[1]||'').split('=');
+                            const sec = parseInt(kv[1]||'0',10);
+                            if (sec>0){
+                                const m = Math.floor(sec/60), s = String(sec%60).padStart(2,'0');
+                                dur = ` (${m}:${s})`;
+                            }
+                        }
+                        const label = type==='started' ? 'Звонок начат' : `Звонок завершён${dur}`;
+                        contentHtml = `<div class="message-text" style="opacity:.85;font-style:italic;">${label}</div>`;
+                    } else {
+                        // Текстовое сообщение (возможная расшифровка)
+                        let textToShow = data.content || '';
+                        const dec = await tryDecryptText(textToShow);
+                        if (dec !== null) textToShow = dec;
+                        contentHtml = `<div class="message-text">${textToShow}</div>`;
+                    }
                 }
                 
                 messageDiv.innerHTML = `
@@ -1287,17 +1327,14 @@
                     if (data.success) {
                         // Очищаем поле ввода
                         messageInput.value = '';
-                        
-                        // Файл успешно загружен, сообщение будет создано на сервере
-                        // Не нужно отправлять дополнительное сообщение через сокет
-                        console.log('Файл успешно загружен');
-                        
-                        // Прокручиваем к новым сообщениям
-                        setTimeout(scrollToBottom, 500);
-                        // Мгновенно показать «заглушку» файла в ленте без перезагрузки
+                        // Плавная прокрутка вниз
+                        setTimeout(scrollToBottom, 300);
+                        // Показать «заглушку» с индикатором до прихода события через сокет
                         const stub = document.createElement('div');
                         stub.className = 'message sent';
-                        stub.innerHTML = `<div class="message-file"><i class=\"fas fa-paperclip\"></i> ${file.name}</div><div class=\"message-time\">${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} <i class=\"fas fa-check-double\" style=\"margin-left:5px;\"></i></div>`;
+                        if (data.message_id) stub.dataset.msgId = data.message_id;
+                        stub.innerHTML = `<div class="message-text" style="opacity:.8;">Отправка файла: ${file.name}…</div>
+                            <div class="message-time">${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} <i class=\"fas fa-check-double\" style=\"margin-left:5px;\"></i></div>`;
                         chatMessages && chatMessages.appendChild(stub);
                     } else { showToast('Ошибка загрузки файла: ' + (data.error || 'Неизвестная ошибка')); }
                 })
@@ -1345,6 +1382,63 @@
             setTimeout(scrollToBottom, 300);
         }
             
+            // Выбор сообщений
+            selectModeBtn?.addEventListener('click', ()=>{
+                selectionMode = !selectionMode;
+                copySelectedBtn.style.display = selectionMode ? 'inline-flex' : 'none';
+                shareSelectedBtn.style.display = selectionMode ? 'inline-flex' : 'none';
+            });
+            chatMessages?.addEventListener('click', (e)=>{
+                if (!selectionMode) return;
+                const msgEl = e.target.closest('.message');
+                if (!msgEl) return;
+                const id = msgEl.dataset.msgId;
+                if (!id) return;
+                if (selectedMessageIds.has(id)) { selectedMessageIds.delete(id); msgEl.style.outline = ''; }
+                else { selectedMessageIds.add(id); msgEl.style.outline = '2px solid var(--active-color)'; }
+            });
+            copySelectedBtn?.addEventListener('click', async ()=>{
+                const texts = [...selectedMessageIds].map(id=>{
+                    const el = chatMessages.querySelector(`.message[data-msg-id="${id}"] .message-text`);
+                    return el ? el.textContent.trim() : '';
+                }).filter(Boolean);
+                if (!texts.length) return;
+                try{ await navigator.clipboard.writeText(texts.join('\n')); showToast('Скопировано'); }catch(_e){ showToast('Не удалось скопировать'); }
+            });
+            shareSelectedBtn?.addEventListener('click', ()=>{
+                const ids = [...selectedMessageIds];
+                if (!ids.length) return;
+                const quote = ids.map(id=>{
+                    const el = chatMessages.querySelector(`.message[data-msg-id="${id}"] .message-text`);
+                    return el ? `> ${el.textContent.trim()}` : '';
+                }).join('\n');
+                messageInput.value = `${quote}\n\n` + messageInput.value;
+                selectionMode = false; copySelectedBtn.style.display='none'; shareSelectedBtn.style.display='none';
+                // reply по последнему выделенному
+                replyToId = ids[ids.length-1];
+            });
+
+            // Удаление своего сообщения (через контекстное меню по клику на своё)
+            chatMessages?.addEventListener('contextmenu', (e)=>{
+                const msgEl = e.target.closest('.message.sent');
+                if (!msgEl) return;
+                e.preventDefault();
+                const id = msgEl.dataset.msgId; if (!id) return;
+                const ok = confirm('Удалить сообщение?');
+                if (!ok) return;
+                const fd = new FormData(); fd.append('message_id', id);
+                fetch('/api/messages/delete', { method:'POST', body: fd, headers:{'X-Requested-With':'XMLHttpRequest','X-CSRFToken':'{{ csrf_token }}'} })
+                    .then(r=>r.json()).then(j=>{
+                        if (j && j.success){ msgEl.querySelector('.message-text')?.replaceWith((()=>{ const d=document.createElement('div'); d.className='message-text'; d.style.opacity='.7'; d.textContent='Сообщение удалено'; return d; })()); }
+                    });
+            });
+
+            // При удалении через сокеты
+            socket.on('message_deleted', (data)=>{
+                const el = chatMessages.querySelector(`.message[data-msg-id="${data.id}"] .message-text`);
+                if (el){ el.style.opacity='.7'; el.textContent='Сообщение удалено'; }
+            });
+
             // Прокрутка вниз
             function scrollToBottom() {
                 chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -1748,12 +1842,24 @@
             
             // Получение сигнала о завершении звонка
             socket.on('webrtc_end_call', (data) => {
-                if (callPeerId && data.sender_id !== callPeerId) return;
+                const peer = callPeerId || friendId;
+                if (peer && data.sender_id !== peer) return;
+                const reason = (data && data.reason) || '';
+                const isDeclined = reason === 'declined' || /откл/i.test(reason);
+                if (callStatus) callStatus.textContent = isDeclined ? 'Вызов отклонён' : 'Звонок завершён';
+                // Прячем кнопки, показываем retry до подключения
+                callAccept && (callAccept.style.display = 'none');
+                callDecline && (callDecline.style.display = 'none');
+                muteBtn && (muteBtn.style.display = 'none');
+                callEnd && (callEnd.style.display = 'none');
                 if (!hasConnected) {
-                        // До установления звонка не закрываем окно — даём шанс перезвонить
-                        showCallError(data.reason || 'Собеседник недоступен.');
-                        if (callRetry) callRetry.style.display = 'inline-flex';
+                    callRetry && (callRetry.style.display = 'inline-flex');
+                    // не переотправляем end в ответ
+                    hasSentEndSignal = true;
+                    pendingOffer = null; pendingOfferSender = null;
+                    setTimeout(()=>{ try{ callModal.style.display = 'none'; }catch(_e){} }, 1600);
                 } else {
+                    hasSentEndSignal = true;
                     endCall();
                 }
             });
