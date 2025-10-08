@@ -75,7 +75,7 @@
         .codes-table th:nth-child(6){ width:9%; } /* Действие */
         .codes-table td:nth-child(2){ text-align:center; }
         .codes-table td:nth-child(6){ text-align:right; }
-        .codes-table td:nth-child(1){ font-family: monospace; white-space: nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .codes-table td:nth-child(1){ font-family: monospace; white-space: nowrap; overflow:hidden; text-overflow:ellipsis; user-select: all; }
         @media (max-width: 1180px){
             .codes-table th, .codes-table td{ padding:10px 8px; font-size: .95rem; }
             .codes-table th:nth-child(1){ width:24%; }
@@ -90,6 +90,9 @@
         .system-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; }
         .control-card { background: var(--card); padding: 25px; border-radius: 12px; }
         .control-card h3 { margin-bottom: 15px; color: var(--text); }
+        /* Верхняя панель действий */
+        .actions-bar{display:flex;gap:8px;margin-bottom:12px}
+        .actions-bar .btn{display:inline-flex;align-items:center;gap:8px}
 
         /* Модалка причины блокировки */
         .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 5000; }
@@ -318,6 +321,11 @@
                     </div>
                     
                     <div class="control-card">
+                        <div class="actions-bar">
+                            <button class="btn" id="act-generate"><i class="fas fa-plus"></i> Создать код</button>
+                            <button class="btn" id="act-copy-selected" disabled><i class="fas fa-copy"></i> Копировать выбранный</button>
+                            <button class="btn btn-danger" id="act-delete-selected" disabled><i class="fas fa-trash"></i> Удалить выбранный</button>
+                        </div>
                         <h3>Приглашения</h3>
                         <form class="admin-form" method="POST" action="{{ url_for('admin.admin_invites') }}">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -341,23 +349,27 @@
                         <div style="margin-top:15px">
                             <h4 style="margin-bottom:10px">Активные коды</h4>
                             <div class="table-wrap">
-                            <table class="user-table codes-table">
+                            <table class="user-table codes-table" id="codes-table">
                                 <thead>
                                     <tr><th>Код</th><th>Осталось использований</th><th>Создан</th><th>Действует до</th><th>Статус</th><th></th></tr>
                                 </thead>
                                 <tbody>
                                     {% for inv in invites %}
-                                    <tr>
+                                    <tr class="js-code-row">
                                         <td style="font-family:monospace">{{ inv['code'] }}</td>
                                         <td>{{ inv['uses_left'] }}</td>
                                         <td>{{ inv['created_at'] }}</td>
                                         <td>{{ inv['expires_at'] or '—' }}</td>
                                         <td>{% if inv['expired'] %}<span style="color:#e74c3c">Просрочен</span>{% else %}Активен{% endif %}</td>
                                         <td>
-                                            <form method="POST" action="{{ url_for('admin.admin_invites_revoke', code=inv['code']) }}">
-                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                <button class="btn btn-danger js-invite-revoke" type="button">Удалить</button>
-                                            </form>
+                                            <div style="display:flex;gap:8px;justify-content:flex-end">
+                                                <label class="btn" style="cursor:pointer"><input type="radio" name="codeSel" class="js-code-radio" value="{{ inv['code'] }}" style="display:none">Выбрать</label>
+                                                <button class="btn js-invite-copy" type="button" data-code="{{ inv['code'] }}"><i class="fas fa-copy"></i> Копировать</button>
+                                                <form method="POST" action="{{ url_for('admin.admin_invites_revoke', code=inv['code']) }}">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                    <button class="btn btn-danger js-invite-revoke" type="button"><i class="fas fa-trash"></i> Удалить</button>
+                                                </form>
+                                            </div>
                                         </td>
                                     </tr>
                                     {% endfor %}
@@ -831,6 +843,51 @@
                 fetch(`/admin/toggle_block/${uid}`, { method:'POST', body: fd, headers:{'X-Requested-With':'XMLHttpRequest','X-CSRFToken':'{{ csrf_token }}'} })
                     .then(()=> location.reload());
             }
+        });
+
+        // Копирование кода приглашения
+        document.querySelectorAll('.js-invite-copy').forEach(btn=>{
+            btn.addEventListener('click', async ()=>{
+                const code = btn.dataset.code || '';
+                try { await navigator.clipboard.writeText(code); toast('Код скопирован'); }
+                catch(_e){
+                    const td = btn.closest('tr')?.querySelector('td:nth-child(1)');
+                    if (td){
+                        const range = document.createRange(); range.selectNodeContents(td);
+                        const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+                        toast('Выделите и копируйте Ctrl+C');
+                    }
+                }
+            });
+        });
+
+        // Верхняя панель действий: выбор, копирование, удаление
+        const copySelBtn = document.getElementById('act-copy-selected');
+        const delSelBtn = document.getElementById('act-delete-selected');
+        const genBtn = document.getElementById('act-generate');
+        const table = document.getElementById('codes-table');
+        function getSelectedCode(){
+            const r = document.querySelector('.js-code-radio:checked');
+            return r ? r.value : '';
+        }
+        table?.addEventListener('change', (e)=>{
+            if (e.target.classList.contains('js-code-radio')){
+                const has = !!getSelectedCode(); copySelBtn.disabled = !has; delSelBtn.disabled = !has;
+            }
+        });
+        copySelBtn?.addEventListener('click', async ()=>{
+            const code = getSelectedCode(); if (!code) return;
+            try{ await navigator.clipboard.writeText(code); toast('Код скопирован'); }catch(_e){ toast('Не удалось скопировать'); }
+        });
+        delSelBtn?.addEventListener('click', ()=>{
+            const code = getSelectedCode(); if (!code) return;
+            // используем уже готовую модалку подтверждения
+            const row = [...document.querySelectorAll('.js-code-row')].find(tr=> tr.querySelector('td')?.textContent.trim()===code);
+            const btn = row?.querySelector('.js-invite-revoke'); btn?.click();
+        });
+        genBtn?.addEventListener('click', ()=>{
+            // скроллим к форме генерации и фокусируем поля, без переходов
+            document.querySelector('input[name="uses"]').focus();
         });
     </script>
     <button class="theme-toggle" id="themeToggle">
