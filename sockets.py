@@ -66,7 +66,7 @@ def register_socket_handlers(socketio):
             leave_room(str(user_id))
             logger.info(f"User {user_id} disconnected")
             
-            # Завершаем все активные звонки при отключении
+            # Завершаем активные и ожидающие звонки при отключении (перезагрузке/закрытии)
             for call_id, call_data in list(active_calls.items()):
                 if call_data['caller_id'] == user_id or call_data['receiver_id'] == user_id:
                     other_user = call_data['receiver_id'] if call_data['caller_id'] == user_id else call_data['caller_id']
@@ -76,6 +76,20 @@ def register_socket_handlers(socketio):
                     }, room=str(other_user))
                     del active_calls[call_id]
                     logger.info(f"Call {call_id} ended due to user disconnect")
+            for call_id, call_data in list(pending_calls.items()):
+                if call_data['caller_id'] == user_id or call_data['receiver_id'] == user_id:
+                    other_user = call_data['receiver_id'] if call_data['caller_id'] == user_id else call_data['caller_id']
+                    emit('webrtc_end_call', {
+                        'sender_id': user_id,
+                        'reason': 'User disconnected'
+                    }, room=str(other_user))
+                    del pending_calls[call_id]
+                    logger.info(f"Pending call {call_id} cleared due to user disconnect")
+            # Снимаем занятость пары (на случай перезагрузки страницы)
+            for key, data in list(active_calls_by_pair.items()):
+                if data.get('a') == user_id or data.get('b') == user_id:
+                    del active_calls_by_pair[key]
+                    logger.info(f"Active pair {key} cleared due to user disconnect")
 
             # Обновляем оффлайн-статус и last_seen
             try:
@@ -412,10 +426,37 @@ def register_socket_handlers(socketio):
         if not all([sender_id, receiver_id, offer]):
             return
         
-        # Пересылаем предложение получателю
+        # Если один из пользователей уже в активном звонке — отклоняем как "занят"
+        try:
+            def _is_busy(uid:int)->bool:
+                for _k,_d in active_calls_by_pair.items():
+                    if _d.get('a') == uid or _d.get('b') == uid:
+                        return True
+                return False
+            if _is_busy(receiver_id) or _is_busy(sender_id):
+                busy_uid = receiver_id if _is_busy(receiver_id) else sender_id
+                emit('call_busy', { 'receiver_id': receiver_id, 'busy_user_id': busy_uid }, room=str(sender_id))
+                logger.info(f"Rejecting offer from {sender_id} to {receiver_id}: busy")
+                return
+        except Exception:
+            logger.exception('busy-check failed')
+        
+        # Пересылаем предложение получателю с именем и аватаром звонящего
+        try:
+            conn = get_db(); c = conn.cursor()
+            c.execute("SELECT username, avatar FROM users WHERE id = ?", (sender_id,))
+            row = c.fetchone(); conn.close()
+            sender_username = row['username'] if row else ''
+            sender_avatar = row['avatar'] if row else None
+        except Exception:
+            sender_username = ''
+            sender_avatar = None
+
         emit('webrtc_offer', {
             'offer': offer,
-            'sender_id': sender_id
+            'sender_id': sender_id,
+            'sender_username': sender_username,
+            'sender_avatar': sender_avatar
         }, room=str(receiver_id))
         logger.info(f"WebRTC offer sent from {sender_id} to {receiver_id}")
     

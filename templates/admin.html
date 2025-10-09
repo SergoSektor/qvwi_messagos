@@ -469,19 +469,11 @@
                             <td>{{ r['created_at'] }}</td>
                             <td class="action-buttons">
                                 <audio controls preload="none" src="{{ url_for('static', filename='music/' + r['filename']) }}" style="height:32px;"></audio>
-                                <form method="POST" action="{{ url_for('admin.resolve_report') }}" style="display:inline-flex; gap:8px;">
-                                    <input type="hidden" name="report_id" value="{{ r['id'] }}">
-                                    <input type="hidden" name="target_type" value="music">
-                                    <input type="hidden" name="target_id" value="{{ r['track_id'] }}">
-                                    <select name="action">
-                                        <option value="delete">Удалить</option>
-                                        <option value="ban">Заблокировать</option>
-                                        <option value="block">Навсегда</option>
-                                    </select>
-                                    <input type="number" name="ban_minutes" value="60" min="0" style="width:80px;">
-                                    <input type="text" name="ban_reason" placeholder="Причина">
-                                    <button type="submit" class="btn">Применить</button>
-                                </form>
+                                <div style="display:inline-flex; gap:8px;">
+                                    <button class="btn js-mr-delete" data-id="{{ r['id'] }}" data-track="{{ r['track_id'] }}">Удалить трек</button>
+                                    <button class="btn btn-warning js-mr-ban" data-id="{{ r['id'] }}" data-user="{{ r['user_id'] }}">Бан 24ч</button>
+                                    <button class="btn btn-danger js-mr-block" data-id="{{ r['id'] }}" data-user="{{ r['user_id'] }}">Блок навсегда</button>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
@@ -860,6 +852,23 @@
                 }
             });
         });
+
+        // Упрощённые действия по жалобам на музыку через AJAX
+        async function mrAction(type, data){
+            const fd = new FormData();
+            fd.append('report_id', data.id);
+            fd.append('target_type', 'music');
+            fd.append('target_id', data.track||'');
+            if (type==='delete') fd.append('action','delete');
+            if (type==='ban') { fd.append('action','ban'); fd.append('ban_minutes','1440'); fd.append('ban_reason','Музыка: нарушение'); }
+            if (type==='block') { fd.append('action','block'); fd.append('ban_reason','Музыка: грубое нарушение'); }
+            const res = await fetch('/admin/report/resolve', { method:'POST', body: fd, headers:{'X-Requested-With':'XMLHttpRequest','X-CSRFToken':'{{ csrf_token }}'} });
+            const j = await res.json().catch(()=>({success:false}));
+            if (j && j.success){ toast('Выполнено'); location.reload(); } else { toast('Не удалось выполнить'); }
+        }
+        document.querySelectorAll('.js-mr-delete').forEach(b=> b.addEventListener('click', ()=> mrAction('delete', { id: b.dataset.id, track: b.dataset.track })));
+        document.querySelectorAll('.js-mr-ban').forEach(b=> b.addEventListener('click', ()=> mrAction('ban', { id: b.dataset.id, user: b.dataset.user })));
+        document.querySelectorAll('.js-mr-block').forEach(b=> b.addEventListener('click', ()=> mrAction('block', { id: b.dataset.id, user: b.dataset.user })));
 
         // Верхняя панель действий: выбор, копирование, удаление
         const copySelBtn = document.getElementById('act-copy-selected');

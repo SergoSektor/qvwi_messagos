@@ -50,7 +50,7 @@
         }
         
         body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            font-family: 'Inter', 'Segoe UI', Roboto, Arial, sans-serif; 
             background: var(--bg-primary); 
             color: var(--text-primary); 
             min-height: 100vh;
@@ -143,7 +143,7 @@
             box-shadow: var(--shadow); 
             padding: 20px; 
             height: 100%; 
-            /* overflow-y removed to restore previous scrolling behavior */
+            /* На десктопе скроллится вся страница, на мобилке фиксируем список */
         }
         
         .friends-list h2 { 
@@ -292,6 +292,10 @@
         .chat-actions button:hover {
             background: var(--nav-hover);
         }
+
+        /* Более заметный бейдж «микрофон выключен» у аватарки собеседника */
+        .chat-avatar .mic-muted{ display:none; position:absolute; top:-6px; right:-6px; width:22px; height:22px; border-radius:50%; background:#ef4444; color:#fff; border:2px solid var(--section-bg); box-shadow:0 2px 8px rgba(0,0,0,.25) }
+        .chat-avatar .mic-muted i{ font-size:11px }
         
         .chat-messages { 
             flex: 1; 
@@ -341,7 +345,16 @@
         
         .message-text {
             word-wrap: break-word;
-            line-height: 1.4;
+            line-height: 1.45;
+            font-feature-settings: 'liga' 1, 'calt' 1;
+        }
+
+        /* Стиль для записей о звонках */
+        .message .message-text.call-log{
+            font-style: italic;
+            letter-spacing: .15px;
+            opacity: .9;
+            color: var(--text-secondary);
         }
         
         .message-time { 
@@ -372,6 +385,28 @@
             padding: 15px; 
             border-top: 1px solid var(--border-color); 
             align-items: center; 
+        }
+
+        /* Мобильная фиксация верхнего и нижнего худа */
+        /* По умолчанию FAB скрыты (десктоп) */
+        .fab, .fab-panel { display: none; }
+        
+        @media (max-width: 900px){
+            body.device-mobile .chat-header{ position: sticky; top: 0; z-index: 5; background: var(--section-bg); }
+            /* Фиксируем нижнюю панель к экрану */
+            body.device-mobile .chat-input{ position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--section-bg); box-shadow: 0 -4px 10px rgba(0,0,0,.12); padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+            /* Добавляем отступ снизу под фиксированную панель */
+            body.device-mobile .chat-messages{ height: calc(100vh - 180px); overflow-y: auto; padding-bottom: 110px; }
+            body.device-mobile .content{ padding-bottom: 110px; }
+            body.device-mobile .friends-list{ position: sticky; top: 0; max-height: 100vh; overflow-y: auto; }
+            .app-container{ overflow: hidden; }
+            /* FAB-кнопки только на мобилке */
+            body.device-mobile .fab{ position: fixed; right: 16px; bottom: 92px; width: 50px; height: 50px; border-radius: 25px; border: none; background: var(--active-color); color: #fff; z-index: 7; display:flex; align-items:center; justify-content:center; box-shadow:0 8px 24px rgba(0,0,0,.25); }
+            body.device-mobile .fab.secondary{ right: auto; left: 16px; background:#3b82f6; }
+            body.device-mobile .fab.badge::after{ content: attr(data-badge); position:absolute; top:-6px; right:-6px; min-width:18px; height:18px; padding:0 4px; border-radius:9px; background:#ef4444; color:#fff; font-size:11px; line-height:18px; text-align:center; display: inline-block; }
+            body.device-mobile .fab-panel{ position: fixed; left: 16px; bottom: 150px; background: var(--section-bg); border: 1px solid var(--border-color); border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,.35); z-index: 7; display:none; overflow: hidden; }
+            body.device-mobile .fab-panel a{ display:flex; align-items:center; gap:8px; padding:10px 14px; color: var(--text-primary); text-decoration:none; border-bottom:1px solid var(--border-color); }
+            body.device-mobile .fab-panel a:last-child{ border-bottom:none; }
         }
         
         .chat-input textarea { 
@@ -516,6 +551,15 @@
             color: white;
         }
         
+        /* Результат звонка / абонент занят */
+        .result-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:2100 }
+        .result-box{ background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border-color); border-radius:14px; box-shadow:0 18px 60px rgba(0,0,0,.35); width:min(380px,92vw); padding:18px }
+        .result-box .title{ font-weight:700; margin-bottom:8px; }
+        .result-box .text{ color:var(--text-secondary); margin-bottom:14px }
+        .result-box .actions{ display:flex; justify-content:flex-end; gap:8px }
+        .btn{ padding:8px 12px; border-radius:8px; border:1px solid var(--border-color); background:var(--info-bg); color:var(--text-primary); cursor:pointer }
+        .btn.primary{ background:var(--active-color); color:#fff; border-color:transparent }
+
         .call-status {
             margin: 15px 0;
             font-size: 1.1rem;
@@ -631,13 +675,18 @@
                     <button id="start-chat-btn" title="Написать" style="width:42px;height:38px;border-radius:8px;border:none;background:var(--active-color);color:#fff;cursor:pointer"><i class="fas fa-arrow-right"></i></button>
                 </div>
                 {% for friend in friends %}
+                {% set lm = last_map.get(friend[0]) if last_map else None %}
+                {% set preview = (lm.preview if lm else 'Последнее сообщение...') %}
                 <div class="friend-item {% if friend_id == friend[0] %}active{% endif %}" onclick="location.href='{{ url_for('messages.messages', friend_id=friend[0]) }}'">
                     <img src="{% if friend[2] %}{{ url_for('static', filename='uploads/' + friend[2]) }}{% else %}{{ url_for('static', filename='uploads/default_avatar.png') }}{% endif %}" 
                          alt="Avatar"
                          onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/default_avatar.png') }}'">
                     <div class="friend-info">
                         <h3>{{ friend[1] }}</h3>
-                        <p>Последнее сообщение...</p>
+                        <p>{{ preview }}</p>
+                        {% if lm and lm.epoch %}
+                        <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">{{ lm.time }}</div>
+                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}
@@ -698,6 +747,14 @@
                     <button id="share-selected-btn" title="Поделиться выбранными" style="display:none;"><i class="fas fa-share-alt"></i></button>
                     <button id="send-button" title="Отправить"><i class="fas fa-paper-plane"></i></button>
                 </div>
+                <!-- FAB для быстрого доступа на мобиле -->
+                <button class="fab" id="fab-scroll" title="Вниз"><i class="fas fa-arrow-down"></i></button>
+                <button class="fab secondary" id="fab-menu" title="Меню"><i class="fas fa-ellipsis-h"></i></button>
+                <div class="fab-panel" id="fab-panel">
+                    <a href="{{ url_for('feed.feed') }}"><i class="fas fa-newspaper"></i> Лента</a>
+                    <a href="{{ url_for('music.music_index') }}"><i class="fas fa-music"></i> Музыка</a>
+                    <a href="{{ url_for('profile.profile') }}"><i class="fas fa-user"></i> Профиль</a>
+                </div>
                 {% else %}
                 <div class="empty-chat">
                     <i class="fas fa-comments"></i>
@@ -743,6 +800,17 @@
                 Собеседник выключил микрофон
             </div>
             <div id="call-error" style="display:none; margin-top:10px; color:#e74c3c; font-size:0.95rem;"></div>
+        </div>
+    </div>
+
+    <!-- Окно результата звонка (занят/завершён) -->
+    <div class="result-backdrop" id="call-result">
+        <div class="result-box">
+            <div class="title" id="call-result-title">Звонок завершён</div>
+            <div class="text" id="call-result-text">Абонент сейчас занят</div>
+            <div class="actions">
+                <button class="btn" id="call-result-close">Закрыть</button>
+            </div>
         </div>
     </div>
 
@@ -825,6 +893,98 @@
             const shareSelectedBtn = document.getElementById('share-selected-btn');
             // Для reply/forward/delete
             let replyToId = null;
+
+            // ====== AUDIO: сигналы звонка (без внешних файлов) ======
+            let audioCtx = null, ringOsc = null, ringGain = null, ringTimer = null;
+            function ensureAudio(){
+                try{
+                    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+                }catch(_e){}
+            }
+            function unlockAudio(){ ensureAudio(); document.removeEventListener('click', unlockAudio); document.removeEventListener('keydown', unlockAudio); }
+            document.addEventListener('click', unlockAudio, { once:true });
+            document.addEventListener('keydown', unlockAudio, { once:true });
+            function startRing(mode){
+                try{
+                    ensureAudio(); if (!audioCtx) return;
+                    stopRing();
+                    ringOsc = audioCtx.createOscillator();
+                    ringGain = audioCtx.createGain();
+                    ringOsc.type = 'sine';
+                    // входящий звонок делаем более высокой частоты
+                    ringOsc.frequency.value = (mode === 'in') ? 940 : 540;
+                    ringGain.gain.value = 0.0001;
+                    ringOsc.connect(ringGain).connect(audioCtx.destination);
+                    ringOsc.start();
+                    let on = false;
+                    ringTimer = setInterval(()=>{
+                        on = !on;
+                        const v = on ? 0.12 : 0.0001;
+                        try{ ringGain.gain.setTargetAtTime(v, audioCtx.currentTime, 0.02); }catch(_e){ ringGain.gain.value = v; }
+                    }, 800); // 0.8s включен / 0.8s выключен
+                }catch(_e){}
+            }
+            function stopRing(){
+                try{ if (ringTimer){ clearInterval(ringTimer); ringTimer = null; } }catch(_e){}
+                try{ if (ringOsc){ ringOsc.stop(); ringOsc.disconnect(); ringOsc = null; } }catch(_e){}
+                try{ if (ringGain){ ringGain.disconnect(); ringGain = null; } }catch(_e){}
+            }
+
+            // Короткий звук подключения (двойной «пик»)
+            function playConnected(){
+                try{
+                    ensureAudio(); if (!audioCtx) return;
+                    const now = audioCtx.currentTime;
+                    const g = audioCtx.createGain();
+                    g.connect(audioCtx.destination);
+                    try{ g.gain.setValueAtTime(0.0001, now); }catch(_e){ g.gain.value = 0.0001; }
+                    const o1 = audioCtx.createOscillator(); o1.type='sine'; o1.frequency.value = 880; o1.connect(g);
+                    const o2 = audioCtx.createOscillator(); o2.type='sine'; o2.frequency.value = 1320; o2.connect(g);
+                    o1.start(now); o1.stop(now+0.12);
+                    o2.start(now+0.13); o2.stop(now+0.25);
+                    try{
+                        g.gain.setTargetAtTime(0.14, now, 0.01);
+                        g.gain.setTargetAtTime(0.0001, now+0.25, 0.02);
+                    }catch(_e){}
+                    setTimeout(()=>{ try{ g.disconnect(); }catch(_e){} }, 320);
+                }catch(_e){}
+            }
+
+            // Короткий звук «подключаюсь» перед установлением соединения
+            function playPreconnect(){
+                try{
+                    ensureAudio(); if (!audioCtx) return;
+                    const now = audioCtx.currentTime;
+                    const g = audioCtx.createGain();
+                    g.connect(audioCtx.destination);
+                    try{ g.gain.setValueAtTime(0.0001, now); }catch(_e){ g.gain.value = 0.0001; }
+                    const o = audioCtx.createOscillator(); o.type='triangle'; o.frequency.value = 740; o.connect(g);
+                    o.start(now); o.stop(now+0.18);
+                    try{
+                        g.gain.setTargetAtTime(0.12, now, 0.01);
+                        g.gain.setTargetAtTime(0.0001, now+0.18, 0.02);
+                    }catch(_e){}
+                    setTimeout(()=>{ try{ g.disconnect(); }catch(_e){} }, 260);
+                }catch(_e){}
+            }
+
+            // Мини-проверка: аудиоконтекст, наличие микрофона, готовность сокета/комнаты
+            async function preflightCheck(label){
+                try{ ensureAudio(); }catch(_e){}
+                try{
+                    const devs = await (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices ? navigator.mediaDevices.enumerateDevices() : Promise.resolve([]));
+                    const hasMic = Array.isArray(devs) && devs.some(d=>d.kind==='audioinput');
+                    if (!hasMic) { try{ showToast('Микрофон не найден'); }catch(_e){} }
+                }catch(_e){}
+                try{
+                    let tries = 0; while(!(socketReady && roomJoined) && tries < 15){ await new Promise(r=>setTimeout(r,100)); tries++; }
+                }catch(_e){}
+                try{
+                    if (callStatus){ const prev = callStatus.textContent; callStatus.textContent = 'Проверка…'; setTimeout(()=>{ try{ callStatus.textContent = prev; }catch(_e){} }, 600); }
+                }catch(_e){}
+                console.debug('[preflight]', label||'', { audioCtx: !!audioCtx });
+            }
             
             // Переменные для WebRTC
             let localStream = null;
@@ -1047,6 +1207,20 @@
                 if (dec !== null){ el.textContent = dec; el.dataset.decoded = '1'; return true; }
                 // запросим ключ и попробуем позже
                 if (friendId) socket.emit('e2e_request_pubkey', { user_id: friendId });
+                // если у нас нет своей пары — создаём
+                try{
+                    const storedPriv = localStorage.getItem('e2e_priv_p256');
+                    const storedPub = localStorage.getItem('e2e_pub_p256');
+                    if (!storedPriv || !storedPub){
+                        const kp = await crypto.subtle.generateKey({ name:'ECDH', namedCurve:'P-256' }, true, ['deriveKey']);
+                        e2ePrivateKey = kp.privateKey; e2ePublicKey = kp.publicKey;
+                        const pubJwk = await crypto.subtle.exportKey('jwk', e2ePublicKey);
+                        const privJwk = await crypto.subtle.exportKey('jwk', e2ePrivateKey);
+                        localStorage.setItem('e2e_pub_p256', JSON.stringify(pubJwk));
+                        localStorage.setItem('e2e_priv_p256', JSON.stringify(privJwk));
+                        socket.emit('e2e_pubkey', { receiver_id: friendId, pubkey: pubJwk });
+                    }
+                }catch(_e){}
                 pendingDecrypt.push({ el, ciphertext });
                 return false;
             }
@@ -1121,8 +1295,25 @@
                     const myPub = JSON.parse(localStorage.getItem('e2e_pub_p256'));
                     // Отправляем свой публичный ключ собеседнику
                     socket.emit('e2e_pubkey', { receiver_id: friendId, pubkey: myPub });
-                    // Запрашиваем публичный ключ собеседника, если он уже известен серверу
-                    socket.emit('e2e_request_pubkey', { user_id: friendId });
+                    // Пытаемся использовать кэшированный ключ собеседника, если есть
+                    const cachedPeer = localStorage.getItem(`peer_pub_p256_${friendId}`);
+                    if (cachedPeer){
+                        try{
+                            const peerJwk = JSON.parse(cachedPeer);
+                            const peerPubKey = await crypto.subtle.importKey('jwk', peerJwk, { name: 'ECDH', namedCurve: 'P-256' }, true, []);
+                            e2eDerivedKey = await crypto.subtle.deriveKey(
+                                { name: 'ECDH', public: peerPubKey },
+                                e2ePrivateKey,
+                                { name: 'AES-GCM', length: 256 },
+                                false,
+                                ['encrypt', 'decrypt']
+                            );
+                            cryptoKey = e2eDerivedKey; encryptEnabled = true;
+                        }catch(_e){ socket.emit('e2e_request_pubkey', { user_id: friendId }); }
+                    } else {
+                        // Запрашиваем публичный ключ собеседника, если он ещё не кэширован
+                        socket.emit('e2e_request_pubkey', { user_id: friendId });
+                    }
                 } catch(e) { /* ignore */ }
             }
 
@@ -1141,6 +1332,8 @@
                     cryptoKey = e2eDerivedKey;
                     encryptEnabled = true;
                     if (encryptBtn) encryptBtn.innerHTML = '<i class="fas fa-lock"></i>';
+                    // Сохраним публичный ключ собеседника локально для оффлайна/после перезагрузки
+                    try{ localStorage.setItem(`peer_pub_p256_${friendId}`, JSON.stringify(data.pubkey)); }catch(_e){}
                     // повторим расшифровку для ожидающих
                     if (pendingDecrypt.length){
                         const items = pendingDecrypt.splice(0, pendingDecrypt.length);
@@ -1302,7 +1495,7 @@
                             }
                         }
                         const label = type==='started' ? 'Звонок начат' : `Звонок завершён${dur}`;
-                        contentHtml = `<div class="message-text" style="opacity:.85;font-style:italic;">${label}</div>`;
+                        contentHtml = `<div class="message-text call-log">${label}</div>`;
                 } else {
                     // Текстовое сообщение (возможная расшифровка)
                     let textToShow = data.content || '';
@@ -1585,8 +1778,24 @@
                 chatMessages.scrollTop = chatMessages.scrollHeight;
             }
             
-            // Автопрокрутка при загрузке
+            // Автопрокрутка при загрузке и при показе клавиатуры на мобилке
             scrollToBottom();
+            window.addEventListener('resize', ()=>{ setTimeout(scrollToBottom, 50); });
+            messageInput.addEventListener('focus', ()=>{ setTimeout(scrollToBottom, 50); });
+
+            // FAB поведение на мобилке
+            const fabScroll = document.getElementById('fab-scroll');
+            const fabMenu = document.getElementById('fab-menu');
+            const fabPanel = document.getElementById('fab-panel');
+            if (fabScroll){ fabScroll.addEventListener('click', scrollToBottom); }
+            if (fabMenu){ fabMenu.addEventListener('click', ()=>{ fabPanel.style.display = (fabPanel.style.display==='block' ? 'none' : 'block'); }); }
+            document.addEventListener('click', (e)=>{ if (fabPanel && !fabPanel.contains(e.target) && e.target!==fabMenu) { fabPanel.style.display='none'; } }, true);
+
+            // Закрытие окна результата
+            const resultBackdrop = document.getElementById('call-result');
+            const resultClose = document.getElementById('call-result-close');
+            if (resultBackdrop){ resultBackdrop.style.display='none'; }
+            if (resultClose){ resultClose.addEventListener('click', ()=>{ resultBackdrop.style.display='none'; }); }
             
             // ========== ФУНКЦИОНАЛ ЗВОНКОВ ==========
             
@@ -1615,7 +1824,23 @@
                         if (callRetry) callRetry.style.display = 'none';
                         if (audioCallBtn) audioCallBtn.disabled = true;
                         if (videoCallBtn) videoCallBtn.disabled = true;
+                        startRing('out');
                     }
+                    playPreconnect();
+                    await preflightCheck('caller');
+                    // Обновим модал на данные текущего друга (инициатор знает, кому звонит)
+                    try{
+                        const uEl = document.getElementById('call-username');
+                        const aEl = document.getElementById('call-avatar');
+                        if (uEl) uEl.textContent = `{{ active_friend[1] if active_friend else '' }}` + (friendId?` (id:${friendId})`:'' );
+                        if (aEl) {
+                            {% if active_friend and active_friend[5] %}
+                            aEl.src = `{{ url_for('static', filename='uploads/' + active_friend[5]) }}`;
+                            {% else %}
+                            aEl.src = `{{ url_for('static', filename='uploads/default_avatar.png') }}`;
+                            {% endif %}
+                        }
+                    }catch(_e){}
                     await populateMicDevices();
                     localStream = await getLocalStream(withVideo);
                     createPeerConnection();
@@ -1655,7 +1880,7 @@
                 };
                 peerConnection.onconnectionstatechange = () => {
                     const st = peerConnection.connectionState;
-                    if (st === 'connected') { if (callStatus) callStatus.textContent = 'Разговор активен'; startCallTimer(); hasConnected = true; }
+                    if (st === 'connected') { if (callStatus) callStatus.textContent = 'Разговор активен'; startCallTimer(); hasConnected = true; stopRing(); playConnected(); }
                     if (st === 'failed') {
                         if (!hasConnected) {
                             // Не закрываем модалку до установления связи — дадим ретраить
@@ -1765,6 +1990,7 @@
                 try {
                     hasSentEndSignal = false;
                     if (callStatus) callStatus.textContent = 'Подключение...';
+                    stopRing();
                     if (callAccept) callAccept.style.display = 'none';
                     if (callDecline) callDecline.style.display = 'none';
                     if (callEnd) callEnd.style.display = 'block';
@@ -1804,6 +2030,7 @@
                     socket.emit('webrtc_end_call', { receiver_id: targetPeer, reason: 'declined' });
                     hasSentEndSignal = true;
                 }
+                stopRing();
                 endCall();
             });
             callEnd && callEnd.addEventListener('click', () => {
@@ -1811,6 +2038,7 @@
                     socket.emit('webrtc_end_call', { receiver_id: friendId, reason: 'ended' });
                     hasSentEndSignal = true;
                 }
+                stopRing();
                 endCall();
             });
             callRetry && callRetry.addEventListener('click', async () => {
@@ -1841,6 +2069,7 @@
                     clearInterval(callTimerInterval);
                     callTimerInterval = null;
                 }
+                stopRing();
                 if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
                 
                 // Сбрасываем отображение таймера
@@ -1943,13 +2172,42 @@
                         if (callDecline) callDecline.style.display = 'block';
                         if (callEnd) callEnd.style.display = 'none';
                         if (muteBtn) muteBtn.style.display = 'none';
+                        startRing('in');
                     }
+                // Подстановка корректных данных звонящего
+                try{
+                    const uEl = document.getElementById('call-username');
+                    const aEl = document.getElementById('call-avatar');
+                    if (data.sender_username && uEl) uEl.textContent = data.sender_username + ` (id:${data.sender_id})`;
+                    if (aEl) {
+                        if (data.sender_avatar){
+                            aEl.src = `/static/uploads/${data.sender_avatar}`;
+                        } else {
+                            aEl.src = `{{ url_for('static', filename='uploads/default_avatar.png') }}`;
+                        }
+                    }
+                }catch(_e){}
+                playPreconnect();
                 try{
                     if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
                     if (Notification && Notification.permission === 'granted'){
                         const n = new Notification('Входящий звонок', { body: 'Открыть диалог и принять?', silent: false });
                         setTimeout(()=>n.close(), 4000);
                     }
+                }catch(_e){}
+            });
+
+            // Получили уведомление, что абонент занят
+            socket.on('call_busy', (data)=>{
+                stopRing();
+                try{ if (callModal) callModal.style.display = 'none'; }catch(_e){}
+                try{
+                    const b = document.getElementById('call-result');
+                    const t = document.getElementById('call-result-title');
+                    const d = document.getElementById('call-result-text');
+                    if (t) t.textContent = 'Абонент занят';
+                    if (d) d.textContent = 'Собеседник уже разговаривает. Попробуйте позже.';
+                    if (b) b.style.display='flex';
                 }catch(_e){}
             });
 
@@ -1998,7 +2256,15 @@
                     // не переотправляем end в ответ
                     hasSentEndSignal = true;
                     pendingOffer = null; pendingOfferSender = null;
-                    setTimeout(()=>{ try{ callModal.style.display = 'none'; }catch(_e){} }, 1600);
+                    try{ callModal.style.display = 'none'; }catch(_e){}
+                    try{
+                        const b = document.getElementById('call-result');
+                        const t = document.getElementById('call-result-title');
+                        const d = document.getElementById('call-result-text');
+                        if (t) t.textContent = isDeclined ? 'Вызов отклонён' : 'Звонок завершён';
+                        if (d) d.textContent = isDeclined ? 'Собеседник отклонил вызов.' : 'Разговор завершён.';
+                        if (b) b.style.display='flex';
+                    }catch(_e){}
                     } else {
                     hasSentEndSignal = true;
                         endCall();

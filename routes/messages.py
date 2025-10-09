@@ -32,6 +32,61 @@ def messages(friend_id=None):
                 WHERE friends.friend_id = ? AND friends.status = 'accepted' 
                 ORDER BY username''', (user_id, user_id))
     friends = c.fetchall()
+
+    # Карта последних сообщений (prev: текст превью, time: время)
+    last_map = {}
+    try:
+        # Вытащим все сообщения текущего пользователя и возьмём по одному последнему на собеседника
+        c.execute('''SELECT sender_id, receiver_id, content, file_path, timestamp
+                     FROM messages
+                     WHERE sender_id = ? OR receiver_id = ?
+                     ORDER BY timestamp DESC''', (user_id, user_id))
+        rows = c.fetchall()
+        def make_preview(content, file_path):
+            if file_path:
+                import os as _os
+                name = _os.path.basename(file_path)
+                ext = (name.rsplit('.', 1)[-1] or '').lower()
+                if ext in ('jpg','jpeg','png','gif','webp','bmp'):
+                    return 'Фото'
+                if ext in ('mp3','wav','ogg','flac'):
+                    return 'Аудио'
+                if ext in ('mp4','webm','mov','mkv'):
+                    return 'Видео'
+                if ext in ('zip','rar','7z','gz','bz2'):
+                    return 'Архив'
+                return 'Файл'
+            if not content:
+                return 'Сообщение'
+            if isinstance(content, bytes):
+                content = content.decode('utf-8', 'ignore')
+            text = str(content)
+            if text.startswith('[call]'):
+                return 'Звонок'
+            if text.startswith('enc:'):
+                return 'Сообщение'
+            # Обрезаем длинные
+            if len(text) > 42:
+                text = text[:39] + '…'
+            return text
+        for r in rows:
+            sid, rid, cont, fpath, ts = r
+            fid = rid if sid == user_id else sid
+            if fid in last_map:
+                continue
+            # epoch
+            epoch = None
+            try:
+                from datetime import datetime as _dt
+                try:
+                    epoch = int(_dt.strptime(ts.split('.')[0], '%Y-%m-%d %H:%M:%S').timestamp())
+                except Exception:
+                    epoch = int(_dt.fromisoformat(ts).timestamp())
+            except Exception:
+                epoch = 0
+            last_map[fid] = {'preview': make_preview(cont, fpath), 'time': ts, 'epoch': epoch}
+    except Exception:
+        last_map = {}
     
     # Получаем историю сообщений если выбран друг
     messages = []
@@ -55,6 +110,7 @@ def messages(friend_id=None):
     return render_template('messages.html', 
                          user=user, 
                          friends=friends, 
+                         last_map=last_map,
                          messages=messages, 
                          friend_id=friend_id, 
                          active_friend=active_friend,
