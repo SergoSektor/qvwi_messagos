@@ -2306,8 +2306,6 @@
             
             // Получение сигнала о завершении звонка
             socket.on('webrtc_end_call', (data) => {
-                const peer = callPeerId || friendId;
-                if (peer && data.sender_id !== peer) return;
                 const reason = (data && data.reason) || '';
                 const isDeclined = reason === 'declined' || /откл/i.test(reason);
                 clearDialTimeout();
