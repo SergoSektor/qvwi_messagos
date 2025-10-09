@@ -7,12 +7,36 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
         @import url('{{ url_for('static', filename='css/hud.css') }}');
+        /* Feed layout */
+        .feed-wrap { max-width: 760px; margin: 0 auto; }
+        /* Card polish */
+        .post { border: 1px solid var(--border-color); transition: transform .15s ease, box-shadow .2s ease; }
+        .post:hover { transform: translateY(-2px); box-shadow: 0 8px 24px var(--shadow-color); }
+        .post-header { position: relative; }
+        .post-header .avatar { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; margin-right: 12px; }
+        .post-header .meta h3 { margin: 0; font-size: 1.05rem; }
+        .post-header .meta time { display:block; color: var(--secondary-text); font-size: .86rem; }
+        .post-content { white-space: pre-wrap; word-wrap: break-word; }
+        .post-actions { display:flex; gap:10px; align-items:center; border-top: 1px solid var(--border-color); padding-top: 12px; }
+        .post-actions .spacer { flex: 1; }
+        .post-actions .stat { color: var(--secondary-text); font-size: .9rem; }
+        /* 3-dots dropdown */
+        .dropdown { position: relative; }
+        .dropdown .more-btn { border:none; background:transparent; color: var(--primary-color); cursor:pointer; padding: 6px 8px; border-radius:8px; }
+        .dropdown .more-btn:hover { background: var(--nav-active-bg, rgba(74,118,168,.12)); }
+        .dropdown .menu { display:none; position:absolute; right:0; top: 32px; background: var(--card-bg); color: var(--text-color); border:1px solid var(--border-color); border-radius:12px; overflow:hidden; box-shadow:0 12px 30px var(--shadow-color); z-index:1000; min-width:240px; }
+        .dropdown .menu form { display:grid; }
+        .dropdown .menu button { padding:10px 14px; border:none; background:transparent; color: var(--text-color); text-align:left; cursor:pointer; }
+        .dropdown .menu button:hover { background: var(--bg-color); }
+        /* Create */
+        .create-post textarea { min-height: 110px; }
+        /* Responsive */
         @media (max-width: 900px) {
             .sidebar { width: 100%; height: auto; position: relative; padding: 15px; }
             .content { margin-left: 0; padding: 12px; }
-            .create-post textarea { min-height: 90px; }
-            .post { padding: 12px; }
-            .post-header img { width: 40px; height: 40px; }
+            .feed-wrap { max-width: 100%; }
+            .post { padding: 14px; }
+            .post-header .avatar { width: 42px; height: 42px; }
         }
         @media (max-width: 600px) {
             .profile-card { display:none; }
@@ -59,6 +83,7 @@
     </div>
 
     <div class="content">
+        <div class="feed-wrap">
         <div class="create-post">
             <!-- Исправленный action для формы -->
             <form method="POST" action="{{ url_for('feed.create_post') }}">
@@ -71,19 +96,32 @@
         {% if posts %}
             {% for post in posts %}
             <div class="post">
-                <div class="post-header">
-                    <!-- Исправленная ссылка на профиль -->
+                <div class="post-header" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
                     <a href="{{ url_for('profile.profile', user_id=post[1]) }}">
-                        <img src="{{ url_for('static', filename='uploads/' + post[5]) if post[5] else url_for('static', filename='uploads/default_avatar.png') }}" alt="Avatar">
+                        <img class="avatar" src="{{ url_for('static', filename='uploads/' + post[5]) if post[5] else url_for('static', filename='uploads/default_avatar.png') }}" alt="Avatar">
                     </a>
-                    <div class="post-info">
+                    <div class="meta post-info">
                         <a href="{{ url_for('profile.profile', user_id=post[1]) }}"><h3>{{ post[4] }}</h3></a>
                         <time>{{ post[3] }}</time>
                     </div>
+                    <div style="margin-left:auto;">
+                        <div class="dropdown">
+                            <button type="button" class="more-btn" onclick="toggleMenu(this)"><i class="fas fa-ellipsis-h"></i></button>
+                            <div class="menu">
+                                <form method="POST" action="{{ url_for('admin.create_report') }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="target_type" value="post">
+                                    <input type="hidden" name="target_id" value="{{ post[0] }}">
+                                    <button type="submit" name="reason" value="Спам">Пожаловаться: Спам</button>
+                                    <button type="submit" name="reason" value="Оскорбления">Пожаловаться: Оскорбления</button>
+                                    <button type="submit" name="reason" value="Насилие/ненависть">Пожаловаться: Насилие/ненависть</button>
+                                    <button type="submit" name="reason" value="18+ контент">Пожаловаться: 18+ контент</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="post-content">
-                    {{ post[2] }}
-                </div>
+                <div class="post-content">{{ post[2] }}</div>
                 <div class="post-actions">
                     {% if post[1] == session['user_id'] %}
                     <button class="delete-btn" onclick="if(confirm('Удалить этот пост?')) { window.location.href = '{{ url_for('feed.delete_post', post_id=post[0]) }}'; }">
@@ -94,26 +132,13 @@
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <button type="submit">
                             <i class="fas fa-thumbs-{{ 'down' if post['liked'] else 'up' }}"></i>
-                            {{ 'Убрать лайк' if post['liked'] else 'Нравится' }} ({{ post['likes_count'] or 0 }})
+                            {{ 'Убрать лайк' if post['liked'] else 'Нравится' }}
                         </button>
                     </form>
-                    <button type="button" onclick="toggleComment('{{ post[0] }}')"><i class="fas fa-comment"></i> Комментировать ({{ post['comments_count'] or 0 }})</button>
-                    <div style="margin-left:auto; position:relative;">
-                        <div class="dropdown" style="position:relative;">
-                            <button type="button" onclick="toggleMenu(this)" style="border:none;background:transparent;color:#4a76a8;cursor:pointer"><i class="fas fa-ellipsis-h"></i></button>
-                            <div class="menu" style="display:none; position:absolute; right:0; background:var(--panel, #fff); color:var(--text, #111); border:1px solid #ddd; border-radius:8px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,.15); z-index:1000; min-width:220px;">
-                                <form method="POST" action="{{ url_for('admin.create_report') }}" style="display:grid;">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <input type="hidden" name="target_type" value="post">
-                                    <input type="hidden" name="target_id" value="{{ post[0] }}">
-                                    <button type="submit" name="reason" value="Спам" style="padding:8px 12px; border:none; background:transparent; color:var(--text, #111); text-align:left; cursor:pointer;">Пожаловаться: Спам</button>
-                                    <button type="submit" name="reason" value="Оскорбления" style="padding:8px 12px; border:none; background:transparent; color:var(--text, #111); text-align:left; cursor:pointer;">Пожаловаться: Оскорбления</button>
-                                    <button type="submit" name="reason" value="Насилие/ненависть" style="padding:8px 12px; border:none; background:transparent; color:var(--text, #111); text-align:left; cursor:pointer;">Пожаловаться: Насилие/ненависть</button>
-                                    <button type="submit" name="reason" value="18+ контент" style="padding:8px 12px; border:none; background:transparent; color:var(--text, #111); text-align:left; cursor:pointer;">Пожаловаться: 18+ контент</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
+                    <button type="button" onclick="toggleComment('{{ post[0] }}')"><i class="fas fa-comment"></i> Комментировать</button>
+                    <div class="spacer"></div>
+                    <div class="stat"><i class="fas fa-heart" style="margin-right:6px;"></i>{{ post['likes_count'] or 0 }}</div>
+                    <div class="stat"><i class="fas fa-comments" style="margin: 0 6px 0 12px;"></i>{{ post['comments_count'] or 0 }}</div>
                 </div>
                 <div id="comment-box-{{ post[0] }}" style="display:none; margin-top:10px;">
                     {% set comments = comments_by_post.get(post[0]) %}
@@ -172,6 +197,7 @@
                 </div>
             </div>
         {% endif %}
+        </div>
     </div>
     <button class="theme-toggle" id="themeToggle">
         <i class="fas fa-moon"></i>
@@ -186,12 +212,13 @@
             if (el) el.style.display = (el.style.display==='none' || !el.style.display) ? 'block' : 'none';
         }
         function toggleMenu(btn){
-            const menu = btn.parentElement.querySelector('.menu');
+            const p = btn.closest('.dropdown');
+            const menu = p && p.querySelector('.menu');
             if (!menu) return;
             menu.style.display = (menu.style.display==='block') ? 'none' : 'block';
             document.addEventListener('click', function handler(e){
-                if (!btn.parentElement.contains(e.target)) { menu.style.display='none'; document.removeEventListener('click', handler); }
-            });
+                if (!p.contains(e.target)) { menu.style.display='none'; document.removeEventListener('click', handler); }
+            }, { capture:true, once:true });
         }
     </script>
 </body>

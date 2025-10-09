@@ -992,6 +992,7 @@
             let isCaller = false;
             let callStartTime = null;
             let callTimerInterval = null;
+            let dialTimeoutTimer = null;
             let isMuted = false;
             let selectionMode = false;
             let selectedMessageIds = new Set();
@@ -1798,6 +1799,13 @@
             if (resultClose){ resultClose.addEventListener('click', ()=>{ resultBackdrop.style.display='none'; }); }
             
             // ========== ФУНКЦИОНАЛ ЗВОНКОВ ==========
+
+            function clearDialTimeout(){
+                if (dialTimeoutTimer){
+                    clearTimeout(dialTimeoutTimer);
+                    dialTimeoutTimer = null;
+                }
+            }
             
             // Инициализация аудиозвонка
             audioCallBtn && audioCallBtn.addEventListener('click', () => startCall(false));
@@ -1825,6 +1833,24 @@
                         if (audioCallBtn) audioCallBtn.disabled = true;
                         if (videoCallBtn) videoCallBtn.disabled = true;
                         startRing('out');
+                        // Таймаут дозвона 30 секунд: по истечении показываем, что абонент недоступен
+                        if (isCaller){
+                            clearDialTimeout();
+                            dialTimeoutTimer = setTimeout(()=>{
+                                try{ stopRing(); }catch(_e){}
+                                try{ if (callModal) callModal.style.display='none'; }catch(_e){}
+                                // Завершаем звонок и показываем UI результата
+                                try{ endCall(); }catch(_e){}
+                                try{
+                                    const b = document.getElementById('call-result');
+                                    const t = document.getElementById('call-result-title');
+                                    const d = document.getElementById('call-result-text');
+                                    if (t) t.textContent = 'Абонент недоступен';
+                                    if (d) d.textContent = 'Не удалось дозвониться. Попробуйте позже.';
+                                    if (b) b.style.display='flex';
+                                }catch(_e){}
+                            }, 30000);
+                        }
                     }
                     playPreconnect();
                     await preflightCheck('caller');
@@ -1880,7 +1906,7 @@
                 };
                 peerConnection.onconnectionstatechange = () => {
                     const st = peerConnection.connectionState;
-                    if (st === 'connected') { if (callStatus) callStatus.textContent = 'Разговор активен'; startCallTimer(); hasConnected = true; stopRing(); playConnected(); }
+                    if (st === 'connected') { if (callStatus) callStatus.textContent = 'Разговор активен'; startCallTimer(); hasConnected = true; stopRing(); playConnected(); clearDialTimeout(); }
                     if (st === 'failed') {
                         if (!hasConnected) {
                             // Не закрываем модалку до установления связи — дадим ретраить
@@ -1991,6 +2017,7 @@
                     hasSentEndSignal = false;
                     if (callStatus) callStatus.textContent = 'Подключение...';
                     stopRing();
+                    clearDialTimeout();
                     if (callAccept) callAccept.style.display = 'none';
                     if (callDecline) callDecline.style.display = 'none';
                     if (callEnd) callEnd.style.display = 'block';
@@ -2031,6 +2058,7 @@
                     hasSentEndSignal = true;
                 }
                 stopRing();
+                clearDialTimeout();
                 endCall();
             });
             callEnd && callEnd.addEventListener('click', () => {
@@ -2039,6 +2067,7 @@
                     hasSentEndSignal = true;
                 }
                 stopRing();
+                clearDialTimeout();
                 endCall();
             });
             callRetry && callRetry.addEventListener('click', async () => {
@@ -2064,6 +2093,7 @@
             
             // Завершение звонка
             function endCall() {
+                clearDialTimeout();
                 // Останавливаем таймер
                 if (callTimerInterval) {
                     clearInterval(callTimerInterval);
@@ -2200,6 +2230,7 @@
             // Получили уведомление, что абонент занят
             socket.on('call_busy', (data)=>{
                 stopRing();
+                clearDialTimeout();
                 try{ if (callModal) callModal.style.display = 'none'; }catch(_e){}
                 try{
                     const b = document.getElementById('call-result');
@@ -2223,6 +2254,7 @@
                 // Примем answer независимо от активного чата
                     try {
                         await peerConnection.setRemoteDescription(data.answer);
+                        clearDialTimeout();
                     } catch (e) {
                         console.error('setRemoteDescription(answer) error', e);
                 }
@@ -2245,6 +2277,7 @@
                 if (peer && data.sender_id !== peer) return;
                 const reason = (data && data.reason) || '';
                 const isDeclined = reason === 'declined' || /откл/i.test(reason);
+                clearDialTimeout();
                 if (callStatus) callStatus.textContent = isDeclined ? 'Вызов отклонён' : 'Звонок завершён';
                 // Прячем кнопки, показываем retry до подключения
                 callAccept && (callAccept.style.display = 'none');
