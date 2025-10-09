@@ -559,7 +559,7 @@
         .result-box .actions{ display:flex; justify-content:flex-end; gap:8px }
         .btn{ padding:8px 12px; border-radius:8px; border:1px solid var(--border-color); background:var(--info-bg); color:var(--text-primary); cursor:pointer }
         .btn.primary{ background:var(--active-color); color:#fff; border-color:transparent }
-
+        
         .call-status {
             margin: 15px 0;
             font-size: 1.1rem;
@@ -969,6 +969,25 @@
                 }catch(_e){}
             }
 
+            // Короткий звук отклонения (нисходящий «бип»)
+            function playDeclined(){
+                try{
+                    ensureAudio(); if (!audioCtx) return;
+                    const now = audioCtx.currentTime;
+                    const g = audioCtx.createGain();
+                    g.connect(audioCtx.destination);
+                    try{ g.gain.setValueAtTime(0.0001, now); }catch(_e){ g.gain.value = 0.0001; }
+                    const o = audioCtx.createOscillator(); o.type='sawtooth'; o.connect(g);
+                    try{ o.frequency.setValueAtTime(820, now); o.frequency.linearRampToValueAtTime(360, now+0.35); }catch(_e){ o.frequency.value = 600; }
+                    o.start(now); o.stop(now+0.36);
+                    try{
+                        g.gain.setTargetAtTime(0.14, now, 0.01);
+                        g.gain.setTargetAtTime(0.0001, now+0.34, 0.02);
+                    }catch(_e){}
+                    setTimeout(()=>{ try{ g.disconnect(); }catch(_e){} }, 420);
+                }catch(_e){}
+            }
+
             // Мини-проверка: аудиоконтекст, наличие микрофона, готовность сокета/комнаты
             async function preflightCheck(label){
                 try{ ensureAudio(); }catch(_e){}
@@ -1163,7 +1182,19 @@
             // Шифрование AES-GCM (по паролю или по ECDH-ключу)
             async function getCryptoKey() {
                 if (cryptoKey) return cryptoKey;
+                if (!friendId) return null;
+                try {
+                    // 1) пробуем серверный ключ для пары (стабилен между устройствами)
+                    const res = await fetch(`/api/enc_key/${friendId}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    const j = await res.json();
+                    if (j && j.ok && j.key_b64) {
+                        const raw = Uint8Array.from(atob(j.key_b64), c=>c.charCodeAt(0));
+                        cryptoKey = await window.crypto.subtle.importKey('raw', raw, { name:'AES-GCM' }, false, ['encrypt','decrypt']);
+                        return cryptoKey;
+                    }
+                } catch(_e) {}
                 if (e2eDerivedKey) { cryptoKey = e2eDerivedKey; return cryptoKey; }
+                // 2) fallback: локальный пароль (на случай, если API недоступно)
                 const pass = localStorage.getItem(`enc_pass_${friendId}`) || '';
                 if (!pass) return null;
                 const enc = new TextEncoder();
@@ -2059,11 +2090,13 @@
                 }
                 stopRing();
                 clearDialTimeout();
+                try{ playDeclined(); }catch(_e){}
                 endCall();
             });
             callEnd && callEnd.addEventListener('click', () => {
-                if (!hasSentEndSignal) {
-                    socket.emit('webrtc_end_call', { receiver_id: friendId, reason: 'ended' });
+                const targetPeer = callPeerId || friendId;
+                if (!hasSentEndSignal && targetPeer) {
+                    socket.emit('webrtc_end_call', { receiver_id: targetPeer, reason: 'ended' });
                     hasSentEndSignal = true;
                 }
                 stopRing();
@@ -2278,7 +2311,9 @@
                 const reason = (data && data.reason) || '';
                 const isDeclined = reason === 'declined' || /откл/i.test(reason);
                 clearDialTimeout();
+                try{ stopRing(); }catch(_e){}
                 if (callStatus) callStatus.textContent = isDeclined ? 'Вызов отклонён' : 'Звонок завершён';
+                if (isDeclined) { try{ playDeclined(); }catch(_e){} }
                 // Прячем кнопки, показываем retry до подключения
                 callAccept && (callAccept.style.display = 'none');
                 callDecline && (callDecline.style.display = 'none');
@@ -2298,6 +2333,8 @@
                         if (d) d.textContent = isDeclined ? 'Собеседник отклонил вызов.' : 'Разговор завершён.';
                         if (b) b.style.display='flex';
                     }catch(_e){}
+                    // Полная очистка даже до подключения, чтобы гарантированно не было дозвона
+                    endCall();
                     } else {
                     hasSentEndSignal = true;
                         endCall();

@@ -264,3 +264,26 @@ def delete_message():
     except Exception:
         pass
     return jsonify({'success': True})
+
+# === Серверное хранилище ключа шифрования для пары пользователей ===
+@bp.route('/api/enc_key/<int:peer_id>', methods=['GET'])
+def get_or_create_enc_key(peer_id:int):
+    if 'user_id' not in session:
+        return jsonify({'ok': False, 'error': 'unauthorized'}), 401
+    user_id = session['user_id']
+    a, b = (user_id, peer_id) if user_id < peer_id else (peer_id, user_id)
+    conn = get_db(); c = conn.cursor()
+    try:
+        c.execute('SELECT key_b64 FROM chat_keys WHERE a_user_id=? AND b_user_id=?', (a,b))
+        row = c.fetchone()
+        if row and row['key_b64']:
+            return jsonify({'ok': True, 'key_b64': row['key_b64']})
+        # создаём новый ключ (32 байта) если его нет
+        import os, base64
+        key = os.urandom(32)
+        key_b64 = base64.b64encode(key).decode('ascii')
+        c.execute('INSERT OR REPLACE INTO chat_keys (a_user_id, b_user_id, key_b64) VALUES (?, ?, ?)', (a,b,key_b64))
+        conn.commit()
+        return jsonify({'ok': True, 'key_b64': key_b64})
+    finally:
+        conn.close()

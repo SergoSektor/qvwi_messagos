@@ -62,6 +62,13 @@ def init_db():
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(sender_id) REFERENCES users(id),
                 FOREIGN KEY(receiver_id) REFERENCES users(id))''')
+
+    # Ключи шифрования чатов (серверное хранилище): пара пользователей -> общий AES ключ (base64)
+    c.execute('''CREATE TABLE IF NOT EXISTS chat_keys (
+                 a_user_id INTEGER NOT NULL,
+                 b_user_id INTEGER NOT NULL,
+                 key_b64 TEXT NOT NULL,
+                 PRIMARY KEY (a_user_id, b_user_id))''')
     
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

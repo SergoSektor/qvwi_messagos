@@ -50,8 +50,36 @@
     const socket = await ensureSocket(); if (!socket) return;
     socket.off && socket.off('webrtc_offer');
     socket.on('webrtc_offer', (data)=>{ if (data && data.sender_id){ showIncomingBanner(data.sender_id); } });
-    // Скрыть баннер, если звонок завершён/отклонён
-    socket.on('webrtc_end_call', ()=>{ const b = document.getElementById('incoming-call-banner'); if (b) b.remove(); });
+    // Скрыть баннер, если звонок завершён/отклонён, и показать причину при отклонении
+    socket.on('webrtc_end_call', (data)=>{
+      const b = document.getElementById('incoming-call-banner'); if (b) b.remove();
+      try{
+        const reason = (data && data.reason) || '';
+        if (/declined/i.test(reason) || /откл/i.test(reason)){
+          // небольшой «бип» отклонения
+          try{
+            const AC = window.AudioContext || window.webkitAudioContext; const ctx = new AC();
+            const g = ctx.createGain(); g.connect(ctx.destination);
+            const o = ctx.createOscillator(); o.type='sawtooth'; o.connect(g);
+            const now = ctx.currentTime; try{ g.gain.setValueAtTime(0.0001, now); }catch(_e){ g.gain.value=0.0001; }
+            try{ o.frequency.setValueAtTime(820, now); o.frequency.linearRampToValueAtTime(360, now+0.35); }catch(_e){ o.frequency.value=600; }
+            o.start(now); o.stop(now+0.36);
+            try{ g.gain.setTargetAtTime(0.14, now, 0.01); g.gain.setTargetAtTime(0.0001, now+0.34, 0.02);}catch(_e){}
+            setTimeout(()=>{ try{ g.disconnect(); ctx.close(); }catch(_e){} }, 500);
+          }catch(_e){}
+          const id = 'call-result-banner';
+          const old = document.getElementById(id); if (old) old.remove();
+          const wrap = document.createElement('div');
+          wrap.id = id;
+          wrap.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:1200;background:var(--panel,#1e1e1e);color:var(--text,#e6edf3);border:1px solid var(--table-border,rgba(255,255,255,0.12));border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.35);padding:12px 14px;display:flex;gap:10px;align-items:center;';
+          wrap.innerHTML = '<div style="font-weight:700">Вызов отклонён</div>'+
+                           '<button id="crb-close" style="margin-left:12px;background:transparent;color:var(--text,#e6edf3);border:1px solid var(--table-border,rgba(255,255,255,0.12));border-radius:8px;padding:6px 10px;cursor:pointer">Закрыть</button>';
+          document.body.appendChild(wrap);
+          document.getElementById('crb-close').onclick = ()=>{ wrap.remove(); };
+          setTimeout(()=>{ try{ wrap.remove(); }catch(_e){} }, 6000);
+        }
+      }catch(_e){}
+    });
   })();
 })();
 
