@@ -1190,6 +1190,9 @@
                     if (j && j.ok && j.key_b64) {
                         const raw = Uint8Array.from(atob(j.key_b64), c=>c.charCodeAt(0));
                         cryptoKey = await window.crypto.subtle.importKey('raw', raw, { name:'AES-GCM' }, false, ['encrypt','decrypt']);
+                        // Включаем шифрование по умолчанию, если получили серверный ключ
+                        encryptEnabled = true;
+                        try{ if (encryptBtn) encryptBtn.innerHTML = '<i class="fas fa-lock"></i>'; }catch(_e){}
                         return cryptoKey;
                     }
                 } catch(_e) {}
@@ -1576,7 +1579,9 @@
             
             // Загрузка истории сообщений
             if (friendId) {
-                // Пытаемся инициализировать E2E без пароля
+                // Сначала пробуем получить серверный ключ (кросс-девайс)
+                (async ()=>{ try{ const k = await getCryptoKey(); if (k){ encryptEnabled = true; if (encryptBtn) encryptBtn.innerHTML = '<i class="fas fa-lock"></i>'; } }catch(_e){} })();
+                // Параллельно инициализируем E2E как резерв
                 initE2E();
                 fetch(`/api/messages/${friendId}`)
                     .then(response => response.json())
